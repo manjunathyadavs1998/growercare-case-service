@@ -49,7 +49,7 @@
 | CASE-E76 | R59 | care.in · retailer.in | share case A | 403 (no `case:share`) |
 | CASE-E77 | R59 | grower.in2 | share case A | 404 |
 | CASE-E78 | R60 | grower.in1 | unshare 502 | 204; retailer2.in GET case A → 404 |
-| CASE-E79 | R61 | care.in · grower.in1 | GET activity after create + transition with a note | both see CREATED, STATUS_CHANGED; only care.in sees the note |
+| CASE-E79 | R61 | care.in · grower.in1 | GET activity after create + transition with a note | both see CREATED, ROUTED, STATUS_CHANGED (ROUTED added by SPEC-CASE-04); only care.in sees the note |
 
 ## 3. API contract
 | Method | Path | Request | Success | Errors |

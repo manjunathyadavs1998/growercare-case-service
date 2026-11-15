@@ -34,7 +34,9 @@ public record CaseRecord(
         Instant updatedAt,
         Instant closedAt,
         int version,
-        Set<Long> activeShares) {
+        Set<Long> activeShares,
+        String queueCode,
+        Instant slaStartedAt) {
 
     public CaseRecord {
         activeShares = Set.copyOf(activeShares);

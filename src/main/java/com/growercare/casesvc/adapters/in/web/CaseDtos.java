@@ -5,6 +5,7 @@ import com.growercare.casesvc.domain.CaseChildren.Comment;
 import com.growercare.casesvc.domain.CaseChildren.Share;
 import com.growercare.casesvc.domain.CaseRecord;
 import com.growercare.casesvc.domain.CaseRules;
+import com.growercare.casesvc.domain.SlaRules;
 import com.growercare.common.error.NotFoundException;
 import com.growercare.common.error.ValidationException;
 import com.growercare.security.PiiClearance;
@@ -54,10 +55,11 @@ final class CaseDtos {
             String growerId, String growerName, String growerPhoneLast4, String farmId,
             String raisedByUserId, String raisedChannel, String raisedViaPartnerOrgId,
             String productId, String batchNo, String title, String description, String assigneeUserId,
-            Instant slaDueAt, Instant createdAt, Instant updatedAt, Instant closedAt, int version) {
+            Instant slaDueAt, Instant createdAt, Instant updatedAt, Instant closedAt, int version,
+            String queueCode, String slaState) {
 
         /** R30: the grower's name is masked unless the caller has FULL clearance; the phone never leaves. */
-        static CaseView of(CaseRecord c, PiiClearance clearance) {
+        static CaseView of(CaseRecord c, PiiClearance clearance, SlaRules.SlaState slaState) {
             return new CaseView(
                     id(c.caseId()), c.caseNo().formatted(), c.caseType(), c.status(), c.priority(),
                     c.countryCode(), id(c.territoryId()), c.buCode(),
@@ -65,7 +67,8 @@ final class CaseDtos {
                     c.growerPhoneLast4(), id(c.farmId()),
                     id(c.raisedByUserId()), c.raisedChannel(), id(c.raisedViaPartnerOrgId()),
                     id(c.productId()), c.batchNo(), c.title(), c.description(), id(c.assigneeUserId()),
-                    c.slaDueAt(), c.createdAt(), c.updatedAt(), c.closedAt(), c.version());
+                    c.slaDueAt(), c.createdAt(), c.updatedAt(), c.closedAt(), c.version(),
+                    c.queueCode(), slaState.name());
         }
     }
 

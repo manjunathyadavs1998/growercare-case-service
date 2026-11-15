@@ -4,6 +4,9 @@ import com.growercare.casesvc.application.port.AssigneeDirectory;
 import com.growercare.casesvc.application.port.CaseRepository;
 import com.growercare.casesvc.application.port.CaseRepository.NewCaseRow;
 import com.growercare.casesvc.application.port.ReferenceData;
+import com.growercare.casesvc.application.port.SlaTimerRepository;
+import com.growercare.casesvc.domain.RoutingRules;
+import com.growercare.casesvc.domain.SlaRules;
 import com.growercare.casesvc.domain.CaseRecord;
 import com.growercare.casesvc.domain.CaseRules;
 import com.growercare.casesvc.domain.NewCaseCommand;
@@ -28,6 +31,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -50,9 +54,10 @@ public class CaseCommands {
     private final OutboxWriter outbox;
     private final TransactionTemplate tx;
     private final Clock clock;
+    private final SlaTimerRepository timers;
 
     public CaseCommands(ReferenceData ref, CaseRepository cases, CaseAccess access, AssigneeDirectory assignees, ShardRouter router,
-                        PolicyEnforcer policy, OutboxWriter outbox, TransactionTemplate tx, Clock clock) {
+                        PolicyEnforcer policy, OutboxWriter outbox, TransactionTemplate tx, Clock clock, SlaTimerRepository timers) {
         this.ref = ref;
         this.cases = cases;
         this.access = access;
@@ -62,6 +67,7 @@ public class CaseCommands {
         this.outbox = outbox;
         this.tx = tx;
         this.clock = clock;
+        this.timers = timers;
     }
 
     // ============================================================================================ create
@@ -109,11 +115,17 @@ public class CaseCommands {
         if (previous.isPresent()) {
             return replay(shard, previous.get(), hash);
         }
+        // SPEC-CASE-04 R80/R88: SLA hours per country × type; queue by the most specific routing rule
+        int slaHours = SlaRules.slaHours(ref.slaHours(grower.countryCode(), type.code()), type.defaultSlaHours());
+        var slaDue = now.plus(Duration.ofHours(slaHours));
+        var queue = RoutingRules.route(ref.routingRules().getOrDefault(grower.countryCode(), List.of()), type.code(), bu,
+                        ref.territoryWithAncestors(grower.territoryId()))
+                .orElseThrow(() -> new IllegalStateException("No routing rule (not even a fallback) for " + grower.countryCode()));
         var row = new NewCaseRow(type.code(), type.initialStatus(), grower.territoryId(), bu, grower.growerId(), cmd.farmId(),
                 principal.userId(), CaseRules.channelFor(principal, now),
                 principal.userType() == UserType.PARTNER ? principal.partnerOrgId() : null,
                 cmd.productId(), cmd.batchNo(), cmd.title().strip(), cmd.description().strip(), cmd.priority(),
-                now.plus(Duration.ofHours(type.defaultSlaHours())));
+                slaDue, now, queue);
         try {
             Long caseId = tx.execute(status -> {
                 long id = cases.insert(shard, row);
@@ -122,10 +134,15 @@ public class CaseCommands {
                     return null;
                 }
                 cases.insertActivity(shard, id, "CREATED", principal.userId(), null, row.status(), null);
+                timers.insertTimers(shard, id, SlaRules.timers(now, slaDue));                                 // R81
+                long routed = cases.insertActivity(shard, id, "ROUTED", principal.userId(), null, null, null); // R88
+                cases.insertActivityDetail(shard, id, routed, "queue_code", null, queue);
+                outbox.append(outboxOf(shard), new OutboxWriter.Event("case", Long.toString(id), "case.routed",
+                        Map.of("caseId", Long.toString(id), "queueCode", queue)), TraceIds.currentOrNull());
                 outbox.append(outboxOf(shard), new OutboxWriter.Event("case", Long.toString(id), "case.created", Map.of(
                         "caseId", Long.toString(id), "caseType", row.caseType(), "status", row.status(),
                         "countryCode", grower.countryCode(), "territoryId", Long.toString(row.territoryId()),
-                        "buCode", row.buCode(), "growerId", Long.toString(row.growerId()))), TraceIds.currentOrNull());
+                        "buCode", row.buCode(), "growerId", Long.toString(row.growerId()), "queueCode", queue)), TraceIds.currentOrNull());
                 return id;
             });
             if (caseId == null) {
@@ -170,6 +187,11 @@ public class CaseCommands {
             int version = cases.updateStatus(shard, caseId, expectedVersion, toStatus, edge.toClosed())
                     .orElseThrow(() -> new StaleVersionException("Case", expectedVersion));
             cases.insertActivity(shard, caseId, "STATUS_CHANGED", principal.userId(), current.status(), toStatus, blankToNull(note));
+            if (edge.toClosed()) {
+                timers.cancelTimers(shard, caseId);                                                         // R84
+            } else if (current.isClosed()) {
+                rearmSla(shard, current);                                                                   // R85
+            }
             outbox.append(outboxOf(shard), new OutboxWriter.Event("case", Long.toString(caseId), "case.status_changed", Map.of(
                     "caseId", Long.toString(caseId), "from", current.status(), "to", toStatus, "version", version)), TraceIds.currentOrNull());
         });
@@ -205,6 +227,15 @@ public class CaseCommands {
             outbox.append(outboxOf(shard), new OutboxWriter.Event("case", Long.toString(caseId), "case.assigned", payload), TraceIds.currentOrNull());
         });
         return cases.findById(shard, caseId).orElseThrow();
+    }
+
+    /** R85: a reopened case gets a fresh SLA window and a fresh set of timers. */
+    private void rearmSla(ShardId shard, CaseRecord current) {
+        var now = clock.instant();
+        int defaultHours = ref.caseType(current.caseType()).orElseThrow().defaultSlaHours();
+        var due = now.plus(Duration.ofHours(SlaRules.slaHours(ref.slaHours(current.countryCode(), current.caseType()), defaultHours)));
+        timers.rearmSla(shard, current.caseId(), now, due);
+        timers.insertTimers(shard, current.caseId(), SlaRules.timers(now, due));
     }
 
     static String outboxOf(ShardId shard) {

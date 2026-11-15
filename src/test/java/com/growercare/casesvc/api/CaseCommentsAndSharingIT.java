@@ -258,9 +258,9 @@ class CaseCommentsAndSharingIT extends CaseApiTestBase {
                     .content("{\"toStatus\":\"TRIAGED\",\"note\":\"Internal: likely misuse\"}")).andExpect(status().isOk());
             var json = as(actor, get("/cases/{id}/activity", caseId)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
             List<String> types = JsonPath.read(json, "$[*].type");
-            assertThat(types).containsExactly("CREATED", "STATUS_CHANGED");
+            assertThat(types).containsExactly("CREATED", "ROUTED", "STATUS_CHANGED");   // SPEC-CASE-04 adds ROUTED
             List<Map<String, Object>> rows = JsonPath.read(json, "$[*]");
-            var note = rows.get(1).get("note");
+            var note = rows.get(2).get("note");
             assertThat(note).isEqualTo(notesVisible ? "Internal: likely misuse" : null);
         }
     }

@@ -105,6 +105,9 @@
           "productId" : {
             "type" : "string"
           },
+          "queueCode" : {
+            "type" : "string"
+          },
           "raisedByUserId" : {
             "type" : "string"
           },
@@ -116,6 +119,9 @@
           },
           "slaDueAt" : {
             "format" : "date-time",
+            "type" : "string"
+          },
+          "slaState" : {
             "type" : "string"
           },
           "status" : {
@@ -364,6 +370,22 @@
           "name" : "cursor",
           "required" : false,
           "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "queue",
+          "required" : false,
+          "schema" : {
+            "pattern" : "^[A-Z]{2}-[A-Z0-9-]{2,40}$",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "slaState",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "ON_TRACK", "AT_RISK", "BREACHED", "MET", "MISSED" ],
             "type" : "string"
           }
         } ],

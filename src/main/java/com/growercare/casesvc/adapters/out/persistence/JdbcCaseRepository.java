@@ -72,7 +72,9 @@ class JdbcCaseRepository implements CaseRepository {
             instant(rs, "updated_at"),
             instant(rs, "closed_at"),
             rs.getInt("version"),
-            longs(rs, "active_shares"));
+            longs(rs, "active_shares"),
+            rs.getString("queue_code"),
+            instant(rs, "sla_started_at"));
 
     @Override
     public Optional<CaseRecord> findById(ShardId shard, long caseId) {
@@ -97,6 +99,8 @@ class JdbcCaseRepository implements CaseRepository {
                 .param("caseType", filter.caseType())
                 .param("territoryId", filter.territoryId())
                 .param("assignee", filter.assigneeUserId())
+                .param("queue", filter.queueCode())
+                .param("slaState", filter.slaState())
                 .param("limit", limit)
                 .query(CASE)
                 .list();
@@ -111,6 +115,8 @@ class JdbcCaseRepository implements CaseRepository {
                 .param("productId", r.productId()).param("batchNo", r.batchNo()).param("title", r.title())
                 .param("description", r.description()).param("priority", r.priority())
                 .param("slaDueAt", OffsetDateTime.ofInstant(r.slaDueAt(), ZoneOffset.UTC))
+                .param("slaStartedAt", OffsetDateTime.ofInstant(r.slaStartedAt(), ZoneOffset.UTC))
+                .param("queueCode", r.queueCode())
                 .query(Long.class).single();
     }
 

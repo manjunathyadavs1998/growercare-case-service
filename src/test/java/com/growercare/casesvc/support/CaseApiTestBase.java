@@ -41,7 +41,7 @@ import tools.jackson.databind.json.JsonMapper;
  * Shared Spring context for case-service API tests (one cached context for all subclasses): light test database,
  * Redis container, test JWTs, and IAM replaced by the dev-seed principals ({@link DevSeedPrincipals}).
  */
-@SpringBootTest(properties = "gc.migration.enabled=false")
+@SpringBootTest(properties = {"gc.migration.enabled=false", "gc.jobs.enabled=false"})   // jobs are driven directly by tests
 @AutoConfigureMockMvc
 @Import(CaseApiTestBase.Stubs.class)
 public abstract class CaseApiTestBase {

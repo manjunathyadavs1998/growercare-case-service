@@ -1,6 +1,7 @@
 package com.growercare.casesvc.adapters.out.persistence;
 
 import com.growercare.casesvc.application.port.ReferenceData;
+import com.growercare.casesvc.domain.RoutingRules;
 import com.growercare.common.sql.NamedSqlRegistry;
 import com.growercare.shard.ShardId;
 import java.util.Comparator;
@@ -106,6 +107,53 @@ class JdbcReferenceData implements ReferenceData {
             shardMap.set(map);
         }
         return map.getOrDefault(countryCode, List.of());
+    }
+
+    // SPEC-CASE-04 -----------------------------------------------------------------------------------
+
+    private final AtomicReference<Map<String, List<RoutingRules.Rule>>> rules = new AtomicReference<>();
+
+    @Override
+    public Optional<Integer> slaHours(String countryCode, String caseType) {
+        return jdbc.sql(sql.get("case-ref.slaHours")).param("countryCode", countryCode).param("caseType", caseType)
+                .query(Integer.class).optional();
+    }
+
+    @Override
+    public Map<String, List<RoutingRules.Rule>> routingRules() {
+        var cached = rules.get();
+        if (cached == null) {
+            record Row(String country, RoutingRules.Rule rule) { }
+            cached = jdbc.sql(sql.get("case-ref.routingRules"))
+                    .query((rs, n) -> new Row(rs.getString("country_code"), new RoutingRules.Rule(
+                            rs.getInt("priority"), rs.getString("case_type_code"), rs.getString("bu_code"),
+                            rs.getObject("territory_id", Long.class), rs.getString("queue_code"))))
+                    .list().stream()
+                    .collect(Collectors.groupingBy(Row::country, Collectors.mapping(Row::rule, Collectors.toUnmodifiableList())));
+            rules.set(Map.copyOf(cached));
+        }
+        return cached;
+    }
+
+    @Override
+    public Set<Long> territoryWithAncestors(long territoryId) {
+        return Set.copyOf(jdbc.sql(sql.get("case-ref.territoryWithAncestors")).param("territoryId", territoryId)
+                .query(Long.class).list());
+    }
+
+    @Override
+    public boolean queueExists(String queueCode) {
+        return count(jdbc.sql(sql.get("case-ref.queueExists")).param("queueCode", queueCode).query(Long.class).single());
+    }
+
+    @Override
+    public Set<String> activeCountries() {
+        return Set.copyOf(jdbc.sql(sql.get("case-ref.activeCountries")).query(String.class).list());
+    }
+
+    @Override
+    public List<ShardId> allShards() {
+        return activeCountries().stream().sorted().flatMap(c -> shardsOf(c).stream()).toList();
     }
 
     private static boolean count(long n) {

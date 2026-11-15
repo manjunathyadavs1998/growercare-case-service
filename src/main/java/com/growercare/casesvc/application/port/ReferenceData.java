@@ -1,6 +1,8 @@
 package com.growercare.casesvc.application.port;
 
+import com.growercare.casesvc.domain.RoutingRules;
 import com.growercare.shard.ShardId;
+import java.util.Map;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -38,4 +40,22 @@ public interface ReferenceData {
 
     /** All shard schemas of a country (fan-out targets, decision D1). */
     List<ShardId> shardsOf(String countryCode);
+
+    // SPEC-CASE-04 -----------------------------------------------------------------------------------
+
+    /** R80: country SLA policy hours, if any. */
+    Optional<Integer> slaHours(String countryCode, String caseType);
+
+    /** R88: routing rules of active countries, by country (cached). */
+    Map<String, List<RoutingRules.Rule>> routingRules();
+
+    /** The territory itself and all its ancestors. */
+    Set<Long> territoryWithAncestors(long territoryId);
+
+    boolean queueExists(String queueCode);
+
+    Set<String> activeCountries();
+
+    /** Every shard of every active country. */
+    List<ShardId> allShards();
 }

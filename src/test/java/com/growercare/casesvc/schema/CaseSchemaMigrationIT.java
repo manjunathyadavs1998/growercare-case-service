@@ -119,8 +119,14 @@ class CaseSchemaMigrationIT {
 
         @Test
         void appRoleCanExtendPartitionsAndTheFunctionIsIdempotent() {
-            int created = app.sql("SELECT in_s02.ensure_week_partitions(1, 12)").query(Integer.class).single();
-            assertThat(created).isEqualTo(4 * 7);                         // weeks 9..12 × 7 case-keyed tables
+            app.sql("SELECT in_s02.ensure_week_partitions(1, 12)").query(Integer.class).single();
+            // Order-independent: other suites may already have extended partitions (SPEC-CASE-04 E101).
+            int week12Partitions = owner.sql("""
+                    SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                     WHERE n.nspname = 'in_s02'
+                       AND c.relname LIKE '%\\_w' || to_char(date_trunc('week', now() AT TIME ZONE 'UTC')::date + 84, 'YYYYMMDD')""")
+                    .query(Integer.class).single();
+            assertThat(week12Partitions).isEqualTo(8);                   // all 8 case-keyed tables (incl. case_timer)
             int again = app.sql("SELECT in_s02.ensure_week_partitions(1, 12)").query(Integer.class).single();
             assertThat(again).isZero();
         }

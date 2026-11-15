@@ -15,6 +15,7 @@ import com.growercare.casesvc.application.CaseCommands;
 import com.growercare.casesvc.application.CaseQueries;
 import com.growercare.casesvc.domain.CaseRecord;
 import com.growercare.casesvc.domain.NewCaseCommand;
+import com.growercare.casesvc.domain.SlaRules;
 import com.growercare.security.web.CurrentPrincipal;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -82,8 +83,11 @@ class CaseController {
                   @RequestParam(defaultValue = "false") boolean assignedToMe,
                   @RequestParam(required = false) Instant createdFrom,
                   @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
-                  @RequestParam(required = false) String cursor) {
-        var page = queries.list(new CaseQueries.ListQuery(status, caseType, optionalId(territoryId), assignedToMe, createdFrom, limit, cursor));
+                  @RequestParam(required = false) String cursor,
+                  @RequestParam(required = false) @Pattern(regexp = "^[A-Z]{2}-[A-Z0-9-]{2,40}$") String queue,
+                  @RequestParam(required = false) SlaRules.SlaState slaState) {
+        var page = queries.list(new CaseQueries.ListQuery(status, caseType, optionalId(territoryId), assignedToMe, createdFrom,
+                limit, cursor, queue, slaState));
         return new CasePage(page.items().stream().map(this::view).toList(), page.nextCursor());
     }
 
@@ -110,6 +114,8 @@ class CaseController {
     }
 
     private CaseView view(CaseRecord record) {
-        return CaseView.of(record, CurrentPrincipal.require().piiClearanceFor("case:read", clock.instant()));
+        var now = clock.instant();
+        return CaseView.of(record, CurrentPrincipal.require().piiClearanceFor("case:read", now),
+                SlaRules.state(now, record.slaStartedAt(), record.slaDueAt(), record.closedAt()));
     }
 }

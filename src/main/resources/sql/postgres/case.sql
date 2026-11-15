@@ -6,6 +6,7 @@ SELECT c.case_id, c.case_no, c.country_code, c.case_type_code, c.status_code, c.
        g.user_id AS grower_user_id, g.display_name AS grower_name, g.phone_last4 AS grower_phone_last4, c.farm_id,
        c.raised_by_user_id, c.raised_channel, c.raised_via_partner_org_id, c.product_id, c.batch_no, c.title, c.description,
        c.priority, c.assignee_user_id, c.sla_due_at, c.created_at, c.updated_at, c.closed_at, c.version,
+       c.queue_code, COALESCE(c.sla_started_at, c.created_at) AS sla_started_at,
        ARRAY(SELECT s.partner_org_id FROM {shard}.case_share s WHERE s.case_id = c.case_id AND s.revoked_at IS NULL) AS active_shares
   FROM {shard}.cases c
   JOIN ref.grower g ON g.grower_id = c.grower_id
@@ -16,6 +17,7 @@ SELECT c.case_id, c.case_no, c.country_code, c.case_type_code, c.status_code, c.
        g.user_id AS grower_user_id, g.display_name AS grower_name, g.phone_last4 AS grower_phone_last4, c.farm_id,
        c.raised_by_user_id, c.raised_channel, c.raised_via_partner_org_id, c.product_id, c.batch_no, c.title, c.description,
        c.priority, c.assignee_user_id, c.sla_due_at, c.created_at, c.updated_at, c.closed_at, c.version,
+       c.queue_code, COALESCE(c.sla_started_at, c.created_at) AS sla_started_at,
        ARRAY(SELECT s.partner_org_id FROM {shard}.case_share s WHERE s.case_id = c.case_id AND s.revoked_at IS NULL) AS active_shares
   FROM {shard}.cases c
   JOIN ref.grower g ON g.grower_id = c.grower_id
@@ -28,6 +30,7 @@ SELECT c.case_id, c.case_no, c.country_code, c.case_type_code, c.status_code, c.
        g.user_id AS grower_user_id, g.display_name AS grower_name, g.phone_last4 AS grower_phone_last4, c.farm_id,
        c.raised_by_user_id, c.raised_channel, c.raised_via_partner_org_id, c.product_id, c.batch_no, c.title, c.description,
        c.priority, c.assignee_user_id, c.sla_due_at, c.created_at, c.updated_at, c.closed_at, c.version,
+       c.queue_code, COALESCE(c.sla_started_at, c.created_at) AS sla_started_at,
        ARRAY(SELECT s.partner_org_id FROM {shard}.case_share s WHERE s.case_id = c.case_id AND s.revoked_at IS NULL) AS active_shares
   FROM {shard}.cases c
   JOIN ref.grower g ON g.grower_id = c.grower_id
@@ -39,14 +42,25 @@ SELECT c.case_id, c.case_no, c.country_code, c.case_type_code, c.status_code, c.
    AND (CAST(:caseType AS varchar) IS NULL OR c.case_type_code = CAST(:caseType AS varchar))
    AND (CAST(:territoryId AS bigint) IS NULL OR c.territory_id = CAST(:territoryId AS bigint))
    AND (CAST(:assignee AS bigint) IS NULL OR c.assignee_user_id = CAST(:assignee AS bigint))
+   AND (CAST(:queue AS varchar) IS NULL OR c.queue_code = CAST(:queue AS varchar))
+   -- SPEC-CASE-04 D6: same rules as SlaRules.state (AT_RISK from 75% of the window)
+   AND (CAST(:slaState AS varchar) IS NULL OR CAST(:slaState AS varchar) = CASE
+          WHEN c.sla_due_at IS NULL THEN 'ON_TRACK'
+          WHEN c.closed_at IS NOT NULL THEN CASE WHEN c.closed_at > c.sla_due_at THEN 'MISSED' ELSE 'MET' END
+          WHEN now() >= c.sla_due_at THEN 'BREACHED'
+          WHEN now() >= COALESCE(c.sla_started_at, c.created_at)
+                        + (c.sla_due_at - COALESCE(c.sla_started_at, c.created_at)) * 0.75 THEN 'AT_RISK'
+          ELSE 'ON_TRACK' END)
  ORDER BY c.case_id DESC
  LIMIT :limit
 
 -- name: insert
 INSERT INTO {shard}.cases (case_type_code, status_code, territory_id, bu_code, grower_id, farm_id, raised_by_user_id,
-                           raised_channel, raised_via_partner_org_id, product_id, batch_no, title, description, priority, sla_due_at)
+                           raised_channel, raised_via_partner_org_id, product_id, batch_no, title, description, priority, sla_due_at,
+                           sla_started_at, queue_code)
 VALUES (:caseType, :status, :territoryId, :buCode, :growerId, :farmId, :raisedBy,
-        :channel, :partnerOrgId, :productId, :batchNo, :title, :description, :priority, :slaDueAt)
+        :channel, :partnerOrgId, :productId, :batchNo, :title, :description, :priority, :slaDueAt,
+        :slaStartedAt, :queueCode)
 RETURNING case_id
 
 -- name: findIdempotency

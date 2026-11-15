@@ -6,7 +6,9 @@ import com.growercare.casesvc.application.port.ReferenceData;
 import com.growercare.casesvc.domain.CaseChildren.Activity;
 import com.growercare.casesvc.domain.CaseRecord;
 import com.growercare.common.error.DependencyUnavailableException;
+import com.growercare.casesvc.domain.SlaRules;
 import com.growercare.common.error.GcException;
+import com.growercare.common.error.ValidationException;
 import com.growercare.common.paging.Cursor;
 import com.growercare.security.EffectiveGrant;
 import com.growercare.security.GcPrincipal;
@@ -43,7 +45,7 @@ public class CaseQueries {
     private static final int FAN_OUT_PARALLELISM = 16;
 
     public record ListQuery(String status, String caseType, Long territoryId, boolean assignedToMe, Instant createdFrom,
-                            int limit, String cursor) { }
+                            int limit, String cursor, String queueCode, SlaRules.SlaState slaState) { }
 
     public record Page<T>(List<T> items, String nextCursor) { }
 
@@ -85,8 +87,12 @@ public class CaseQueries {
         long beforeId = q.cursor() == null ? Long.MAX_VALUE : Cursor.decode(q.cursor());
         long fromId = q.createdFrom() == null || q.createdFrom().isBefore(Instant.ofEpochMilli(IdCodec.EPOCH_MS))
                 ? 0 : IdCodec.floor(q.createdFrom());
+        if (q.queueCode() != null && !ref.queueExists(q.queueCode())) {                    // SPEC-CASE-04 R90
+            throw ValidationException.of("queue", "unknown queue");
+        }
         var filter = new CaseRepository.ListFilter(q.status(), q.caseType(), q.territoryId(),
-                q.assignedToMe() ? principal.userId() : null);
+                q.assignedToMe() ? principal.userId() : null, q.queueCode(),
+                q.slaState() == null ? null : q.slaState().name());
 
         var rows = fanOut(targetShards(principal, now), shard ->
                 cases.list(shard, principal, "case:read", filter, beforeId, fromId, q.limit() + 1));

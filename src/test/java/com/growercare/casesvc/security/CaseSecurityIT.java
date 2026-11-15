@@ -46,6 +46,7 @@ import org.springframework.test.web.servlet.ResultActions;
  */
 @SpringBootTest(properties = {
         "gc.migration.enabled=false",                       // CaseTestDatabase migrated it already
+        "gc.jobs.enabled=false",
         "gc.security.cors-allowed-origins=http://localhost:5173"})
 @AutoConfigureMockMvc
 @Import(CaseSecurityIT.Stubs.class)   // explicit: nested @TestConfiguration is not detected for @Nested classes (Spring 7)
