@@ -40,7 +40,7 @@ public class SlaTimerPoller {
 
     /** @return number of timers fired across all shards */
     public int runOnce() {
-        int fired = ref.allShards().stream().mapToInt(this::pollShard).sum();
+        int fired = (int) PerShard.sum("sla-poller", ref.allShards(), this::pollShard);   // R95: one bad shard never stops the rest
         if (fired > 0) {
             log.info("SLA poller fired {} timer(s)", fired);
         }

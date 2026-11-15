@@ -14,7 +14,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * SPEC-CASE-04 R91–R94: per-shard maintenance. Every shard runs in its own transaction under a transaction-scoped
  * advisory try-lock, so concurrent replicas never process the same shard; a shard that is locked elsewhere is
- * skipped (and counted as 0).
+ * skipped (and counted as 0). A shard that fails is logged and skipped (R95).
  */
 @Service
 public class MaintenanceJobs {
@@ -57,9 +57,9 @@ public class MaintenanceJobs {
     }
 
     private long perShard(String job, ToLongFunction<ShardId> work) {
-        return ref.allShards().stream().mapToLong(shard -> {
+        return PerShard.sum(job, ref.allShards(), shard -> {   // R95: one bad shard never stops the rest
             Long result = tx.execute(status -> repo.tryJobLock(job, shard) ? work.applyAsLong(shard) : 0L);
             return result == null ? 0L : result;
-        }).sum();
+        });
     }
 }

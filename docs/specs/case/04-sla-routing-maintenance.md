@@ -33,6 +33,7 @@
 | CASE-R92 | idempotency cleanup runs | — | rows older than 7 days are deleted; newer rows stay, so a retry within 7 days still replays |
 | CASE-R93 | a `*_default` partition contains rows | check runs | ERROR log naming the shard/table + gauge `gc.partition.default.rows > 0` (alerting hook) |
 | CASE-R94 | two service replicas | the same job runs on both | each shard is processed by one replica only (advisory try-lock) |
+| CASE-R95 | one shard fails during a job (SLA poller or maintenance) | the job runs | that shard is logged at ERROR and skipped; every other shard is still processed in the same run, and the failed shard is retried on the next run |
 
 ## 2. Examples (each row = one parameterized test row)
 **Seeded routing rules:** lower priority number = checked first.
@@ -74,6 +75,7 @@
 | CASE-E99 | R92 | idempotency rows aged 8 days and 1 day | the 8-day row is deleted, the 1-day row is kept |
 | CASE-E100 | R93 | a row forced into `cases_default` | ERROR log + gauge > 0 |
 | CASE-E101 | R94 | partition job on 2 threads simultaneously | each shard processed once (sum of created = single-run count) |
+| CASE-E102 | R95 | 4 shards; the first / a middle / the last / every shard throws | all 4 shards are attempted; the total is the sum of the shards that succeeded (0 if all fail) |
 
 **Unit examples** (`SlaRulesTest`, `RoutingRulesTest`):
 - SLA state boundaries: exactly 75% → AT_RISK; exactly due → BREACHED.
@@ -123,3 +125,4 @@
 | R87 / E96 · R90 / E97 | `…$SlaStateAndFilters#caseE96BreachedFilterRespectsScope`, `#caseE97QueueFilter` |
 | R88, R89 / E84–E89 | `…$Routing#routedToQueue` (parameterized); `RoutingRulesTest` (rules + fallback check) |
 | R91–R94 / E98–E101 | `…$Maintenance` (idempotent partitions, idempotency TTL, default-partition gauge, concurrent jobs) |
+| R95 / E102 | `PerShardTest#failingShardIsSkipped` (parameterized); used by `SlaTimerPoller.runOnce` and `MaintenanceJobs` |

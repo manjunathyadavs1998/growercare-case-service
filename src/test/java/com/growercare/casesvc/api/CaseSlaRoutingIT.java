@@ -63,9 +63,18 @@ class CaseSlaRoutingIT extends CaseApiTestBase {
 
     /** Owner-role shortcut: make timers of a case due now (kind = null for all). */
     void forceTimersDue(String caseId, String kind) {
-        owner.sql("UPDATE %s.case_timer SET due_at = now() - interval '1 minute' WHERE case_id = ? %s"
-                        .formatted(shardOf(caseId).schemaName(), kind == null ? "" : "AND kind = '" + kind + "'"))
-                .param(Long.parseLong(caseId)).update();
+        owner.sql("UPDATE %s.case_timer SET due_at = now() - interval '1 minute' WHERE case_id = ? AND (?::text IS NULL OR kind = ?::text)"
+                        .formatted(shardOf(caseId).schemaName()))
+                .param(numericId(caseId)).param(kind).param(kind).update();
+    }
+
+    /** API IDs are strings (convention 2); a non-numeric one is a test failure, not an uncaught parse error. */
+    static long numericId(String id) {
+        try {
+            return Long.parseLong(id);
+        } catch (NumberFormatException e) {
+            throw new AssertionError("API returned a non-numeric id: " + id, e);
+        }
     }
 
     void transition(GcPrincipal actor, String caseId, int version, String to) throws Exception {
@@ -142,7 +151,7 @@ class CaseSlaRoutingIT extends CaseApiTestBase {
         void caseE91BreachedCaseReportsBreachedState() throws Exception {
             var caseId = createCaseOk(GROWER_IN1, complaint());
             owner.sql("UPDATE %s.cases SET sla_due_at = now() - interval '1 minute' WHERE case_id = ?"
-                    .formatted(shardOf(caseId).schemaName())).param(Long.parseLong(caseId)).update();
+                    .formatted(shardOf(caseId).schemaName())).param(numericId(caseId)).update();
             assertThat((String) JsonPath.read(json(CARE_IN, caseId), "$.slaState")).isEqualTo("BREACHED");
         }
 
@@ -179,7 +188,7 @@ class CaseSlaRoutingIT extends CaseApiTestBase {
             forceStatus(caseId, "RESOLVED_BY_ADVICE", false);
             transition(CARE_IN, caseId, 0, "CLOSED");
             owner.sql("UPDATE %s.cases SET sla_started_at = now() - interval '30 days', sla_due_at = now() - interval '20 days' WHERE case_id = ?"
-                    .formatted(shardOf(caseId).schemaName())).param(Long.parseLong(caseId)).update();
+                    .formatted(shardOf(caseId).schemaName())).param(numericId(caseId)).update();
             transition(CARE_IN, caseId, 1, "REOPENED");
             var json = json(CARE_IN, caseId);
             Instant due = Instant.parse(JsonPath.read(json, "$.slaDueAt"));
@@ -211,7 +220,7 @@ class CaseSlaRoutingIT extends CaseApiTestBase {
             owner.sql(("UPDATE %s.cases SET sla_started_at = now() - make_interval(hours => ?), sla_due_at = now() + make_interval(hours => ?),"
                             + " closed_at = %s WHERE case_id = ?").formatted(shardOf(caseId).schemaName(),
                             closedHoursAgo == null ? "NULL" : "now() - make_interval(hours => " + closedHoursAgo + ")"))
-                    .params(startedHoursAgo, dueInHours, Long.parseLong(caseId)).update();
+                    .params(startedHoursAgo, dueInHours, numericId(caseId)).update();
             assertThat((String) JsonPath.read(json(CARE_IN, caseId), "$.slaState")).isEqualTo(expected);
             var listed = as(CARE_IN, get("/cases").param("slaState", expected).param("territoryId", "1002").param("limit", "100"))
                     .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
@@ -223,7 +232,7 @@ class CaseSlaRoutingIT extends CaseApiTestBase {
         void caseE96BreachedFilterRespectsScope() throws Exception {
             var caseId = createCaseOk(GROWER_IN1, complaint());
             owner.sql("UPDATE %s.cases SET sla_due_at = now() - interval '1 hour' WHERE case_id = ?"
-                    .formatted(shardOf(caseId).schemaName())).param(Long.parseLong(caseId)).update();
+                    .formatted(shardOf(caseId).schemaName())).param(numericId(caseId)).update();
             var br = as(CARE_BR, get("/cases").param("slaState", "BREACHED").param("limit", "100"))
                     .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
             assertThat(JsonPath.<List<String>>read(br, "$.items[*].caseId")).doesNotContain(caseId);
@@ -287,9 +296,9 @@ class CaseSlaRoutingIT extends CaseApiTestBase {
             var oldCase = createCaseOk(GROWER_IN1, complaint());
             var newCase = createCaseOk(GROWER_IN1, complaint());
             owner.sql("UPDATE %s.case_idempotency SET created_at = now() - interval '8 days' WHERE case_id = ?"
-                    .formatted(shardOf(oldCase).schemaName())).param(Long.parseLong(oldCase)).update();
+                    .formatted(shardOf(oldCase).schemaName())).param(numericId(oldCase)).update();
             owner.sql("UPDATE %s.case_idempotency SET created_at = now() - interval '1 day' WHERE case_id = ?"
-                    .formatted(shardOf(newCase).schemaName())).param(Long.parseLong(newCase)).update();
+                    .formatted(shardOf(newCase).schemaName())).param(numericId(newCase)).update();
             maintenance.cleanupIdempotency(Duration.ofDays(7));
             assertThat(sqlCount("SELECT count(*) FROM {shard}.case_idempotency WHERE case_id = ?", oldCase)).isZero();
             assertThat(sqlCount("SELECT count(*) FROM {shard}.case_idempotency WHERE case_id = ?", newCase)).isEqualTo(1);
