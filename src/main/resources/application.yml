@@ -1,0 +1,87 @@
+# 12-factor: every environment-specific value comes from an env var (defaults = local-dev stack).
+server:
+  port: ${SERVER_PORT:8082}
+  shutdown: graceful
+  error:
+    include-stacktrace: never
+    include-message: never
+
+spring:
+  application:
+    name: case-service
+  threads:
+    virtual:
+      enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/gc_case}
+    username: ${DB_APP_USER:gc_case_app}
+    password: ${DB_APP_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+      connection-timeout: 3000
+  flyway:
+    enabled: false   # Boot's single-schema Flyway is not used; see gc.migration (ShardedFlywayMigrator)
+
+# SPEC-PLAT-01 D1: API docs off by default; the local profile turns them on.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+gc:
+  # Sharded migrations (common `ref` schema + one schema per ref.shard row), run as the schema OWNER.
+  # In production set GC_MIGRATE=false on the service and run migrations from a pre-deploy Job.
+  migration:
+    enabled: ${GC_MIGRATE:true}
+    owner-user: ${DB_OWNER_USER:gc_case_owner}
+    owner-password: ${DB_OWNER_PASSWORD:}
+    app-role: ${spring.datasource.username}
+    dev-seed: false
+    parallelism: ${GC_MIGRATE_PARALLELISM:8}
+
+# ---------------------------------------------------------------- security (skill: java-security-rbac)
+# Keycloak proves identity; roles/scopes come from IAM grants. Issuer, signature, expiry and audience are validated.
+spring.security.oauth2.resourceserver.jwt:
+  issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8180/realms/growercare}
+  audiences: gc-api,gc-internal
+
+# Client-credentials token for calling IAM's /internal API (Keycloak client "case-service", audience gc-internal).
+spring.security.oauth2.client:
+  registration:
+    iam:
+      provider: keycloak
+      client-id: ${IAM_CLIENT_ID:case-service}
+      client-secret: ${IAM_CLIENT_SECRET:}
+      authorization-grant-type: client_credentials
+  provider:
+    keycloak:
+      token-uri: ${OIDC_ISSUER_URI:http://localhost:8180/realms/growercare}/protocol/openid-connect/token
+
+# Redis: grant cache only (ADR-011). Short timeouts so an outage degrades to direct IAM calls.
+spring.data.redis:
+  host: ${REDIS_HOST:localhost}
+  port: ${REDIS_PORT:6379}
+  password: ${REDIS_PASSWORD:}
+  timeout: 500ms
+  connect-timeout: 500ms
+
+gc.iam:
+  base-url: ${IAM_BASE_URL:http://localhost:8081}
+  connect-timeout: 1s
+  read-timeout: 2s
+gc.security:
+  principal-cache-ttl: 5m

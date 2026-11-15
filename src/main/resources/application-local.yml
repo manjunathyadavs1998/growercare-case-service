@@ -1,0 +1,13 @@
+# Profile "local": matches gc-backend/local-dev/.env.example. DEV ONLY.
+spring:
+  datasource:
+    password: ${DB_APP_PASSWORD:dev_case_app_pw}
+gc:
+  migration:
+    owner-password: ${DB_OWNER_PASSWORD:dev_case_owner_pw}
+    dev-seed: true
+gc.security.cors-allowed-origins: http://localhost:5173
+spring.data.redis.password: ${REDIS_PASSWORD:dev_redis_pw}
+spring.security.oauth2.client.registration.iam.client-secret: ${IAM_CLIENT_SECRET:dev-case-service-secret}
+springdoc.api-docs.enabled: true
+springdoc.swagger-ui.enabled: true
