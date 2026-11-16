@@ -36,4 +36,10 @@ public interface SlaTimerRepository {
 
     /** R93 */
     long defaultPartitionRows(ShardId shard);
+
+    /** SPEC-PLAT-04 R55: deletes outbox rows of one shard that occurred before {@code cutoff}. */
+    int deleteExpiredOutbox(ShardId shard, Instant cutoff);
+
+    /** SPEC-PLAT-04 R61: deletes inbox rows (all consumer groups) processed before {@code cutoff}. */
+    int deleteExpiredInbox(Instant cutoff);
 }

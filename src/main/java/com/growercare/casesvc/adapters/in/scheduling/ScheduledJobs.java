@@ -49,6 +49,16 @@ public class ScheduledJobs {
         run("idempotency-cleanup", () -> maintenance.cleanupIdempotency(Duration.ofDays(7)));
     }
 
+    @Scheduled(cron = "${gc.jobs.outbox-cleanup-cron:0 30 3 * * *}")
+    public void cleanupOutbox() {
+        run("outbox-cleanup", () -> maintenance.cleanupOutbox(Duration.ofDays(3)));       // SPEC-PLAT-04 R55
+    }
+
+    @Scheduled(cron = "${gc.jobs.inbox-cleanup-cron:0 40 3 * * *}")
+    public void cleanupInbox() {
+        run("inbox-cleanup", () -> maintenance.cleanupInbox(Duration.ofDays(7)));         // SPEC-PLAT-04 R61
+    }
+
     @Scheduled(cron = "${gc.jobs.default-check-cron:0 5 * * * *}")
     public void checkDefaultPartitions() {
         run("default-partition-check", () -> {

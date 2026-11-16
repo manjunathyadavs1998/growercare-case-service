@@ -9,6 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param ownerUser     owner role used for DDL
  * @param ownerPassword owner password (from the environment / Secrets Manager)
  * @param appRole       runtime role that receives DML grants (placeholder {@code app_role})
+ * @param cdcRole       Debezium login role that may read the outbox tables only (placeholder {@code cdc_role})
  * @param devSeed       also apply {@code db/case/dev-seed} (local and tests only)
  * @param parallelism   shard schemas migrated concurrently
  */
@@ -18,10 +19,14 @@ public record MigrationProperties(
         String ownerUser,
         String ownerPassword,
         String appRole,
+        String cdcRole,
         boolean devSeed,
         int parallelism) {
 
     public MigrationProperties {
+        if (cdcRole == null || cdcRole.isBlank()) {
+            cdcRole = "gc_cdc";
+        }
         if (parallelism <= 0) {
             parallelism = 4;
         }

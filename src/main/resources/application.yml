@@ -50,6 +50,7 @@ gc:
     owner-user: ${DB_OWNER_USER:gc_case_owner}
     owner-password: ${DB_OWNER_PASSWORD:}
     app-role: ${spring.datasource.username}
+    cdc-role: ${GC_CDC_ROLE:gc_cdc}
     dev-seed: false
     parallelism: ${GC_MIGRATE_PARALLELISM:8}
 
@@ -85,3 +86,23 @@ gc.iam:
   read-timeout: 2s
 gc.security:
   principal-cache-ttl: 5m
+
+# ---------------------------------------------------------------- events (SPEC-PLAT-04)
+# Publishing is Debezium's job (outbox → Kafka); the service only consumes. Production adds MSK IAM auth + TLS
+# through SPRING_KAFKA_* environment variables.
+spring.kafka:
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+  consumer:
+    auto-offset-reset: earliest
+    enable-auto-commit: false
+    key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  producer:   # DLQ only
+    acks: all
+    key-serializer: org.apache.kafka.common.serialization.StringSerializer
+    value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+gc.events:
+  consumers-enabled: ${GC_EVENTS_CONSUMERS_ENABLED:true}
+  grant-topic: iam.grant.events
+  retry-initial-backoff: 1s

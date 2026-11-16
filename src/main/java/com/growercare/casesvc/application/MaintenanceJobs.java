@@ -44,6 +44,19 @@ public class MaintenanceJobs {
         return (int) perShard("idempotency", shard -> repo.deleteExpiredIdempotency(shard, cutoff));
     }
 
+    /** SPEC-PLAT-04 R55: per-shard outbox retention; returns rows deleted. */
+    public int cleanupOutbox(Duration retention) {
+        var cutoff = clock.instant().minus(retention);
+        return (int) perShard("outbox-cleanup", shard -> repo.deleteExpiredOutbox(shard, cutoff));
+    }
+
+    /** SPEC-PLAT-04 R61: inbox retention (one table, not sharded); returns rows deleted. */
+    public int cleanupInbox(Duration retention) {
+        var cutoff = clock.instant().minus(retention);
+        Integer deleted = tx.execute(status -> repo.deleteExpiredInbox(cutoff));
+        return deleted == null ? 0 : deleted;
+    }
+
     /** R93: total rows found in catch-all partitions (must be 0). Shards with rows are logged at ERROR. */
     public long defaultPartitionRows() {
         return perShard("default-check", shard -> {

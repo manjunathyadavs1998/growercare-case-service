@@ -137,12 +137,13 @@ public class CaseCommands {
                 timers.insertTimers(shard, id, SlaRules.timers(now, slaDue));                                 // R81
                 long routed = cases.insertActivity(shard, id, "ROUTED", principal.userId(), null, null, null); // R88
                 cases.insertActivityDetail(shard, id, routed, "queue_code", null, queue);
-                outbox.append(outboxOf(shard), new OutboxWriter.Event("case", Long.toString(id), "case.routed",
-                        Map.of("caseId", Long.toString(id), "queueCode", queue)), TraceIds.currentOrNull());
+                // SPEC-PLAT-04 E72: created before routed (same key ⇒ consumers see them in this order)
                 outbox.append(outboxOf(shard), new OutboxWriter.Event("case", Long.toString(id), "case.created", Map.of(
                         "caseId", Long.toString(id), "caseType", row.caseType(), "status", row.status(),
                         "countryCode", grower.countryCode(), "territoryId", Long.toString(row.territoryId()),
                         "buCode", row.buCode(), "growerId", Long.toString(row.growerId()), "queueCode", queue)), TraceIds.currentOrNull());
+                outbox.append(outboxOf(shard), new OutboxWriter.Event("case", Long.toString(id), "case.routed",
+                        Map.of("caseId", Long.toString(id), "queueCode", queue)), TraceIds.currentOrNull());
                 return id;
             });
             if (caseId == null) {

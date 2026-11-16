@@ -68,7 +68,7 @@ public final class CaseTestDatabase {
         return new ShardedFlywayMigrator(db.ownerDataSource(), new ShardedFlywayMigrator.Settings(
                 List.of("classpath:db/case/common", "classpath:db/case/dev-seed"),
                 List.of("classpath:db/case/shard"),
-                Map.of("app_role", db.appUser()),
+                Map.of("app_role", db.appUser(), "cdc_role", PostgresTestDatabase.CDC_ROLE),
                 MIGRATION_PARALLELISM,
                 TEST_SHARDS::contains));
     }

@@ -10,6 +10,14 @@ SELECT {shard}.ensure_week_partitions(1, :weeksAhead)
 -- name: deleteExpiredIdempotency
 DELETE FROM {shard}.case_idempotency WHERE created_at < :cutoff
 
+-- SPEC-PLAT-04 R55: Debezium reads the WAL, so outbox rows are only kept for debugging/replay (3 days).
+-- name: deleteExpiredOutbox
+DELETE FROM {shard}.outbox WHERE occurred_at < :cutoff
+
+-- SPEC-PLAT-04 R61: consumer inbox retention (7 days), all consumer groups.
+-- name: deleteExpiredInbox
+DELETE FROM msg.inbox WHERE processed_at < :cutoff
+
 -- Rows that fell into catch-all partitions (must be 0; otherwise a weekly partition is missing).
 -- name: defaultPartitionRows
 SELECT (SELECT count(*) FROM {shard}.cases_default)

@@ -40,8 +40,10 @@ public class CaseSchemaConfig {
             var settings = new ShardedFlywayMigrator.Settings(
                     commonLocations,
                     java.util.List.of("classpath:db/case/shard"),
-                    Map.of("app_role", props.appRole()),
-                    props.parallelism());
+                    Map.of("app_role", props.appRole(), "cdc_role", props.cdcRole()),
+                    props.parallelism(),
+                    ShardedFlywayMigrator.Settings.ALL_SHARDS,
+                    props.devSeed());   // SPEC-PLAT-04 R63: out-of-order only with the dev seed (never in production)
             return new ShardedFlywayMigrator(owner, settings).migrate();
         }
     }
@@ -63,7 +65,11 @@ public class CaseSchemaConfig {
         config.setJdbcUrl(dataSource.determineUrl());
         config.setUsername(props.ownerUser());
         config.setPassword(props.ownerPassword());
-        config.setMaximumPoolSize(props.parallelism() + 1);
+        // Each shard's Flyway run holds ~2 connections (schema history + migration) while it waits on the shard DDL
+        // advisory lock. A pool of parallelism + 1 deadlocks: the lock holder waits for a pooled connection that the
+        // lock waiters hold. 3 per worker leaves headroom; the timeout turns any shortfall into an error, not a hang.
+        config.setMaximumPoolSize(props.parallelism() * 3 + 1);
+        config.setConnectionTimeout(java.time.Duration.ofSeconds(60).toMillis());
         return new HikariDataSource(config);
     }
 }

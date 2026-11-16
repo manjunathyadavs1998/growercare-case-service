@@ -84,6 +84,17 @@ class JdbcSlaTimerRepository implements SlaTimerRepository {
         return jdbc.sql(sql.render("maintenance.defaultPartitionRows", shard.schemaName())).query(Long.class).single();
     }
 
+    @Override
+    public int deleteExpiredOutbox(ShardId shard, Instant cutoff) {
+        return jdbc.sql(sql.render("maintenance.deleteExpiredOutbox", shard.schemaName()))
+                .param("cutoff", utc(cutoff)).update();
+    }
+
+    @Override
+    public int deleteExpiredInbox(Instant cutoff) {
+        return jdbc.sql(sql.get("maintenance.deleteExpiredInbox")).param("cutoff", utc(cutoff)).update();
+    }
+
     private static OffsetDateTime utc(Instant instant) {
         return OffsetDateTime.ofInstant(instant, ZoneOffset.UTC);
     }
