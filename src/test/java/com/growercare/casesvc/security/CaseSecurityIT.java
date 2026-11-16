@@ -135,6 +135,58 @@ class CaseSecurityIT {
         mvc.perform(get("/actuator/health")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("UP"));
     }
 
+    /** SPEC-PLAT-05: every error is problem+json, including those raised before Spring MVC. */
+    @org.junit.jupiter.api.Nested
+    class ErrorResponses {
+
+        static String bearer() {
+            return TestJwts.user(TestJwts.CARE_IN).bearer();
+        }
+
+        /** request, status, code, field (null = not asserted), Allow header (null = not asserted). */
+        static Stream<Arguments> errors() {
+            return Stream.of(
+                    argumentSet("PLAT-E78 encoded traversal is rejected by the firewall",
+                            (Supplier<org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder>) () ->
+                                    get(java.net.URI.create("/cases/1/%2e%2e/attachments")).header("Authorization", bearer()), 400, "VALIDATION_FAILED", "path", null),
+                    argumentSet("PLAT-E79 semicolon in the path is rejected by the firewall",
+                            (Supplier<org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder>) () ->
+                                    get("/cases/1;jsessionid=x").header("Authorization", bearer()), 400, "VALIDATION_FAILED", "path", null),
+                    argumentSet("PLAT-E80 unsupported method is 405 with Allow",
+                            (Supplier<org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder>) () ->
+                                    org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/cases").header("Authorization", bearer()),
+                            405, "METHOD_NOT_ALLOWED", null, "GET,POST"),
+                    argumentSet("PLAT-E81 unsupported content type is 415",
+                            (Supplier<org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder>) () ->
+                                    org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/cases").header("Authorization", bearer())
+                                            .header("Idempotency-Key", UUID.randomUUID().toString()).contentType("text/plain").content("hello"), 415, "UNSUPPORTED_MEDIA_TYPE", null, null),
+                    argumentSet("PLAT-E82 unsatisfiable Accept is 406",
+                            (Supplier<org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder>) () ->
+                                    get("/cases").header("Authorization", bearer()).accept("image/png"), 406, "NOT_ACCEPTABLE", null, null),
+                    argumentSet("PLAT-E83 malformed JSON is 400 on body",
+                            (Supplier<org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder>) () ->
+                                    org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/cases").header("Authorization", bearer())
+                                            .header("Idempotency-Key", UUID.randomUUID().toString()).contentType("application/json").content("{\"growerId\":"), 400, "VALIDATION_FAILED", "body", null));
+        }
+
+        @ParameterizedTest
+        @MethodSource("errors")
+        void everyErrorIsProblemJson(Supplier<org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder> request,
+                                     int status, String code, String field, String allowContains) throws Exception {
+            var result = problem(mvc.perform(request.get()), status, code)
+                    .andExpect(jsonPath("$.traceId").exists())
+                    .andExpect(jsonPath("$.trace").doesNotExist());
+            if (field != null) {
+                result.andExpect(jsonPath("$.errors[0].field").value(field));
+            }
+            if (allowContains != null) {
+                for (var method : allowContains.split(",")) {                                   // every listed method (spec E80)
+                    result.andExpect(header().string("Allow", containsString(method)));
+                }
+            }
+        }
+    }
+
     @Test
     void corsOnlyForConfiguredOriginsAndApiSecurityHeaders() throws Exception {
         mvc.perform(options("/cases").header("Origin", "http://localhost:5173").header("Access-Control-Request-Method", "GET"))

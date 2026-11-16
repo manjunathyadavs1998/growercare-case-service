@@ -62,6 +62,7 @@ class GrantCacheConsumerIT extends CaseApiTestBase {
     static final class CountingEvictor implements PrincipalCacheEvictor {
         final PrincipalCacheEvictor real;
         final Map<UUID, AtomicInteger> attempts = new ConcurrentHashMap<>();
+        final Map<UUID, AtomicInteger> successes = new ConcurrentHashMap<>();
         final Map<UUID, AtomicInteger> failuresLeft = new ConcurrentHashMap<>();
 
         CountingEvictor(PrincipalCacheEvictor real) {
@@ -76,6 +77,13 @@ class GrantCacheConsumerIT extends CaseApiTestBase {
                 throw new IllegalStateException("simulated Redis outage");
             }
             real.evict(subject);
+            successes.computeIfAbsent(subject, s -> new AtomicInteger()).incrementAndGet();
+        }
+
+        /** Completed evictions (a transient failure + retry is one success, R57). */
+        int successes(UUID subject) {
+            var n = successes.get(subject);
+            return n == null ? 0 : n.get();
         }
 
         int attempts(UUID subject) {
@@ -152,7 +160,7 @@ class GrantCacheConsumerIT extends CaseApiTestBase {
         send("e65", grantEvent(marker, "iam.grant.created", UUID.randomUUID())); // same partition, consumed after both
 
         awaitInbox(marker);
-        assertThat(evictor.attempts(subject)).isEqualTo(1);
+        assertThat(evictor.successes(subject)).isEqualTo(1);                    // the duplicate never re-ran it
         assertThat(inboxRows(eventId)).isEqualTo(1);
     }
 
@@ -167,7 +175,8 @@ class GrantCacheConsumerIT extends CaseApiTestBase {
         send("e66", grantEvent(eventId, "iam.grant.revoked", subject));
 
         awaitInbox(eventId);
-        assertThat(evictor.attempts(subject)).isEqualTo(2);
+        assertThat(evictor.attempts(subject)).isGreaterThanOrEqualTo(2);       // failed, then retried
+        assertThat(evictor.successes(subject)).isEqualTo(1);
     }
 
     // ------------------------------------------------------------------------------------------ R59 / E68
