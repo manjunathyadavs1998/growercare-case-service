@@ -51,14 +51,51 @@ class IamPrincipalClientTest {
         server.verify();
     }
 
-    @Test
-    void unknownAccountIsEmptyAndFailuresAreDependencyUnavailable() {
-        var subject = DevSeedPrincipals.CARE_IN.subject();
-        server.expect(requestTo("http://iam.test/internal/users/" + subject + "/principal")).andRespond(withResourceNotFound());
-        assertThat(client.resolve(subject)).isEmpty();
+    /** A response whose body stream breaks mid-read, like a read timeout on a cold start (CASE-E125). */
+    static org.springframework.test.web.client.ResponseCreator truncatedBody() {
+        return request -> new org.springframework.mock.http.client.MockClientHttpResponse(new java.io.InputStream() {
+            @Override
+            public int read() throws java.io.IOException {
+                throw new java.io.IOException("closed");
+            }
+        }, org.springframework.http.HttpStatus.OK) {
+            {
+                getHeaders().setContentType(MediaType.APPLICATION_JSON);
+            }
+        };
+    }
 
-        server.reset();
-        server.expect(requestTo("http://iam.test/internal/users/" + subject + "/principal")).andRespond(withServerError());
-        assertThatThrownBy(() -> client.resolve(subject)).isInstanceOf(DependencyUnavailableException.class);
+    static final OAuth2AuthorizedClientManager REFUSING_TOKENS = request -> {
+        throw new org.springframework.security.oauth2.client.ClientAuthorizationException(
+                new org.springframework.security.oauth2.core.OAuth2Error("invalid_client"), "iam");
+    };
+
+    /** IAM behaviour (null = token endpoint fails first), expected: empty principal (true) or dependency failure (false). */
+    static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> failures() {
+        return java.util.stream.Stream.of(
+                org.junit.jupiter.params.provider.Arguments.argumentSet("CASE-E124 IAM 5xx", withServerError(), false),
+                org.junit.jupiter.params.provider.Arguments.argumentSet("CASE-E125 unreadable body (cold-start read timeout)", truncatedBody(), false),
+                org.junit.jupiter.params.provider.Arguments.argumentSet("CASE-E126 token endpoint refuses", null, false),
+                org.junit.jupiter.params.provider.Arguments.argumentSet("CASE-E127 404 = no account", withResourceNotFound(), true));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.MethodSource("failures")
+    void iamFailuresFailClosed(org.springframework.test.web.client.ResponseCreator response, boolean noAccount) {
+        var subject = DevSeedPrincipals.CARE_IN.subject();
+        var target = client;
+        if (response == null) {
+            var builder = RestClient.builder().baseUrl("http://iam.test");
+            MockRestServiceServer.bindTo(builder).build();
+            target = new IamPrincipalClient(builder.build(), REFUSING_TOKENS);
+        } else {
+            server.expect(requestTo("http://iam.test/internal/users/" + subject + "/principal")).andRespond(response);
+        }
+        var finalTarget = target;
+        if (noAccount) {
+            assertThat(finalTarget.resolve(subject)).isEmpty();
+        } else {
+            assertThatThrownBy(() -> finalTarget.resolve(subject)).isInstanceOf(DependencyUnavailableException.class);
+        }
     }
 }
