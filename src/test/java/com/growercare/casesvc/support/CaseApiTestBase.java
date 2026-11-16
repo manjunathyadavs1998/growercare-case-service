@@ -11,6 +11,7 @@ import com.growercare.security.GcPrincipal;
 import com.growercare.security.PrincipalResolver;
 import com.growercare.shard.ShardId;
 import com.growercare.testsupport.RedisTestContainer;
+import com.growercare.testsupport.S3TestContainer;
 import com.growercare.testsupport.TestJwts;
 import com.jayway.jsonpath.JsonPath;
 import java.util.LinkedHashMap;
@@ -56,13 +57,18 @@ public abstract class CaseApiTestBase {
         r.add("spring.data.redis.host", RedisTestContainer::host);
         r.add("spring.data.redis.port", RedisTestContainer::port);
         r.add("spring.data.redis.password", () -> RedisTestContainer.PASSWORD);
+        r.add("gc.attachments.endpoint", S3TestContainer::endpoint);                   // SPEC-CASE-05: SeaweedFS
+        r.add("gc.attachments.access-key", () -> S3TestContainer.ACCESS_KEY);
+        r.add("gc.attachments.secret-key", () -> S3TestContainer.SECRET_KEY);
+        r.add("gc.attachments.sign-checksum", () -> "false");
+        r.add("gc.attachments.create-buckets", () -> "true");
     }
 
     @TestConfiguration
     public static class Stubs {
-        static final Map<UUID, GcPrincipal> BY_SUBJECT = DevSeedPrincipals.all().stream()
+        static final Map<UUID, GcPrincipal> BY_SUBJECT = DevSeedPrincipals.resolvable().stream()
                 .collect(Collectors.toMap(GcPrincipal::subject, Function.identity()));
-        static final Map<Long, GcPrincipal> BY_USER_ID = DevSeedPrincipals.all().stream()
+        static final Map<Long, GcPrincipal> BY_USER_ID = DevSeedPrincipals.resolvable().stream()
                 .collect(Collectors.toMap(GcPrincipal::userId, Function.identity()));
 
         @Bean

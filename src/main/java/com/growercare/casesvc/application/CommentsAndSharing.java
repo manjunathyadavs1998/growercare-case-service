@@ -1,6 +1,7 @@
 package com.growercare.casesvc.application;
 
 import com.growercare.casesvc.application.CaseQueries.Page;
+import com.growercare.casesvc.application.port.AttachmentRepository;
 import com.growercare.casesvc.application.port.CaseRepository;
 import com.growercare.casesvc.application.port.ReferenceData;
 import com.growercare.casesvc.domain.CaseChildren.Comment;
@@ -19,6 +20,8 @@ import com.growercare.security.UserType;
 import com.growercare.security.web.CurrentPrincipal;
 import java.time.Clock;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -28,20 +31,32 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class CommentsAndSharing {
 
-    public record PostComment(UUID clientMsgId, CommentVisibility visibility, String body, Long replyToCommentId) { }
+    public record PostComment(UUID clientMsgId, CommentVisibility visibility, String body, Long replyToCommentId,
+                              List<Long> attachmentIds) {
+        public PostComment {
+            attachmentIds = attachmentIds == null ? List.of() : List.copyOf(attachmentIds);
+        }
+    }
 
-    public record PostResult(Comment comment, boolean replayed) { }
+    /** A comment with the ids of its attachments (SPEC-CASE-05 R111). */
+    public record CommentEntry(Comment comment, List<Long> attachmentIds) { }
+
+    public record PostResult(CommentEntry entry, boolean replayed) { }
 
     private final CaseAccess access;
+    private final Attachments attachments;
+    private final AttachmentRepository attachmentRows;
     private final CaseRepository cases;
     private final ReferenceData ref;
     private final OutboxWriter outbox;
     private final TransactionTemplate tx;
     private final Clock clock;
 
-    public CommentsAndSharing(CaseAccess access, CaseRepository cases, ReferenceData ref, OutboxWriter outbox,
-                              TransactionTemplate tx, Clock clock) {
+    public CommentsAndSharing(CaseAccess access, Attachments attachments, AttachmentRepository attachmentRows,
+                              CaseRepository cases, ReferenceData ref, OutboxWriter outbox, TransactionTemplate tx, Clock clock) {
         this.access = access;
+        this.attachments = attachments;
+        this.attachmentRows = attachmentRows;
         this.cases = cases;
         this.ref = ref;
         this.outbox = outbox;
@@ -74,32 +89,44 @@ public class CommentsAndSharing {
         var inserted = tx.execute(status -> {
             var comment = cases.insertComment(shard, caseId, principal.userId(), authorGrant.roleCode(), cmd.visibility(),
                     cmd.body().strip(), cmd.clientMsgId(), cmd.replyToCommentId());
-            comment.ifPresent(c -> outbox.append(CaseCommands.outboxOf(shard), new OutboxWriter.Event("case", Long.toString(caseId),
-                    "comment.posted", Map.of("caseId", Long.toString(caseId), "commentId", Long.toString(c.commentId()),
-                            "visibility", c.visibility().name(), "authorRole", c.authorRole())), TraceIds.currentOrNull()));
+            comment.ifPresent(c -> {
+                attachments.linkToComment(shard, caseId, cmd.attachmentIds(), principal, c.commentId());   // SPEC-CASE-05 R111/R112
+                var payload = new HashMap<String, Object>(Map.of("caseId", Long.toString(caseId),
+                        "commentId", Long.toString(c.commentId()), "visibility", c.visibility().name(), "authorRole", c.authorRole()));
+                if (!cmd.attachmentIds().isEmpty()) {
+                    payload.put("attachmentIds", cmd.attachmentIds().stream().map(String::valueOf).toList());
+                }
+                outbox.append(CaseCommands.outboxOf(shard), new OutboxWriter.Event("case", Long.toString(caseId),
+                        "comment.posted", payload), TraceIds.currentOrNull());
+            });
             return comment;
         });
         if (inserted.isPresent()) {
-            return new PostResult(inserted.get(), false);
+            return new PostResult(new CommentEntry(inserted.get(), cmd.attachmentIds()), false);
         }
         var existing = cases.findCommentByClientMsgId(shard, caseId, cmd.clientMsgId()).orElseThrow();   // R52
         if (existing.authorUserId() != principal.userId()) {
             throw new ConflictException(ErrorCode.IDEMPOTENCY_KEY_REUSED, "clientMsgId was already used by another author");
         }
-        return new PostResult(existing, true);
+        return new PostResult(withAttachments(shard, caseId, List.of(existing)).getFirst(), true);
     }
 
     @RequiresPermission("case:read")
-    public Page<Comment> comments(long caseId, int limit, String cursor) {
+    public Page<CommentEntry> comments(long caseId, int limit, String cursor) {
         var principal = CurrentPrincipal.require();
         var located = access.byId(principal, "case:read", caseId);
         long beforeId = cursor == null ? Long.MAX_VALUE : Cursor.decode(cursor);
         var rows = cases.listComments(located.shard(), caseId, CommentVisibility.readableBy(principal.userType()), beforeId, limit + 1);
         if (rows.size() > limit) {
             var page = rows.subList(0, limit);
-            return new Page<>(page, Cursor.encode(page.getLast().commentId()));
+            return new Page<>(withAttachments(located.shard(), caseId, page), Cursor.encode(page.getLast().commentId()));
         }
-        return new Page<>(rows, null);
+        return new Page<>(withAttachments(located.shard(), caseId, rows), null);
+    }
+
+    private List<CommentEntry> withAttachments(com.growercare.shard.ShardId shard, long caseId, List<Comment> comments) {
+        var ids = attachmentRows.idsByComment(shard, caseId, comments.stream().map(Comment::commentId).toList());
+        return comments.stream().map(c -> new CommentEntry(c, ids.getOrDefault(c.commentId(), List.of()))).toList();
     }
 
     // ============================================================================================ sharing

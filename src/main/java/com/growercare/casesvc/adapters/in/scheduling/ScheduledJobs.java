@@ -1,5 +1,6 @@
 package com.growercare.casesvc.adapters.in.scheduling;
 
+import com.growercare.casesvc.application.AttachmentScanJob;
 import com.growercare.casesvc.application.MaintenanceJobs;
 import com.growercare.casesvc.application.SlaTimerPoller;
 import io.micrometer.core.instrument.Gauge;
@@ -24,11 +25,13 @@ public class ScheduledJobs {
 
     private final SlaTimerPoller poller;
     private final MaintenanceJobs maintenance;
+    private final AttachmentScanJob attachments;
     private final AtomicLong defaultRows = new AtomicLong();
 
-    public ScheduledJobs(SlaTimerPoller poller, MaintenanceJobs maintenance, MeterRegistry meters) {
+    public ScheduledJobs(SlaTimerPoller poller, MaintenanceJobs maintenance, AttachmentScanJob attachments, MeterRegistry meters) {
         this.poller = poller;
         this.maintenance = maintenance;
+        this.attachments = attachments;
         Gauge.builder(DEFAULT_ROWS_METRIC, defaultRows, AtomicLong::get)
                 .description("Rows in catch-all partitions across all shards (must be 0)")
                 .register(meters);
@@ -37,6 +40,16 @@ public class ScheduledJobs {
     @Scheduled(fixedDelayString = "${gc.jobs.sla-poll-delay:30s}", initialDelayString = "${gc.jobs.initial-delay:20s}")
     public void pollSlaTimers() {
         run("sla-poller", poller::runOnce);
+    }
+
+    @Scheduled(fixedDelayString = "${gc.jobs.attachment-scan-delay:10s}", initialDelayString = "${gc.jobs.initial-delay:20s}")
+    public void scanAttachments() {
+        run("attachment-scan", attachments::runOnce);                                         // SPEC-CASE-05 D4
+    }
+
+    @Scheduled(cron = "${gc.jobs.attachment-expiry-cron:0 50 3 * * *}")
+    public void expireAttachments() {
+        run("attachment-expiry", () -> attachments.expireStale(Duration.ofHours(24)));        // SPEC-CASE-05 R113
     }
 
     @Scheduled(cron = "${gc.jobs.partitions-cron:0 15 2 * * *}")

@@ -37,6 +37,31 @@ class CaseEventContractIT extends CaseApiTestBase {
     @Autowired
     SlaTimerPoller poller;
 
+    @Autowired
+    com.growercare.casesvc.application.AttachmentScanJob scanJob;
+
+    /** Uses the real upload flow (SPEC-CASE-05) to produce attachment events. */
+    final AttachmentFlow attachments = new AttachmentFlow();
+
+    final class AttachmentFlow {
+        String uploadedAndScanned(com.growercare.security.GcPrincipal actor, String caseId) throws Exception {
+            var bytes = com.growercare.casesvc.support.TestImages.jpegWithGps();
+            var sha = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes));
+            var json = as(actor, post("/cases/{id}/attachments", caseId).contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"kind\":\"PHOTO\",\"contentType\":\"image/jpeg\",\"sizeBytes\":" + bytes.length + ",\"sha256\":\"" + sha + "\"}"))
+                    .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+            String id = com.jayway.jsonpath.JsonPath.read(json, "$.attachmentId");
+            String url = com.jayway.jsonpath.JsonPath.read(json, "$.upload.url");
+            java.util.Map<String, String> headers = com.jayway.jsonpath.JsonPath.read(json, "$.upload.headers");
+            var request = java.net.http.HttpRequest.newBuilder(java.net.URI.create(url)).PUT(java.net.http.HttpRequest.BodyPublishers.ofByteArray(bytes));
+            headers.forEach(request::header);
+            java.net.http.HttpClient.newHttpClient().send(request.build(), java.net.http.HttpResponse.BodyHandlers.discarding());
+            as(actor, post("/cases/{id}/attachments/{a}/complete", caseId, id)).andExpect(status().isOk());
+            scanJob.runOnce();
+            return id;
+        }
+    }
+
     /** One case through its life: create → assign → transition → share/unshare → comment → SLA timers fire. */
     @BeforeAll
     void produceEveryEventType() throws Exception {
@@ -52,6 +77,10 @@ class CaseEventContractIT extends CaseApiTestBase {
         as(GROWER_IN1, post("/cases/{id}/comments", caseId).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"clientMsgId\":\"" + UUID.randomUUID() + "\",\"visibility\":\"PUBLIC\",\"body\":\"Any update?\"}"))
                 .andExpect(status().isCreated());                                               // comment.posted
+        var photo = attachments.uploadedAndScanned(GROWER_IN1, caseId);                          // case.attachment.scanned
+        as(GROWER_IN1, post("/cases/{id}/comments", caseId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"clientMsgId\":\"" + UUID.randomUUID() + "\",\"visibility\":\"PUBLIC\",\"body\":\"Photo\",\"attachmentIds\":[\"" + photo + "\"]}"))
+                .andExpect(status().isCreated());                                               // comment.posted + attachmentIds
         owner.sql("UPDATE %s.case_timer SET due_at = now() - interval '1 minute' WHERE case_id = ?"
                 .formatted(shardOf(caseId).schemaName())).param(CaseSlaRoutingIT.numericId(caseId)).update();
         poller.runOnce();                                                                       // sla.warning ×3, sla.breached
@@ -59,7 +88,7 @@ class CaseEventContractIT extends CaseApiTestBase {
 
     static Stream<Arguments> eventTypes() {
         return Stream.of("case.created", "case.routed", "case.assigned", "case.status_changed", "case.shared",
-                        "case.unshared", "comment.posted", "case.sla.warning", "case.sla.breached")
+                        "case.unshared", "comment.posted", "case.sla.warning", "case.sla.breached", "case.attachment.scanned")
                 .map(type -> argumentSet("PLAT-E63 " + type, type));
     }
 

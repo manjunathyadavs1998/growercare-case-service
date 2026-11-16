@@ -106,3 +106,16 @@ gc.events:
   consumers-enabled: ${GC_EVENTS_CONSUMERS_ENABLED:true}
   grant-topic: iam.grant.events
   retry-initial-backoff: 1s
+
+# ---------------------------------------------------------------- attachments (SPEC-CASE-05)
+# AWS: leave endpoint and keys empty (regional endpoint + IRSA); buckets are created by gc-infra.
+gc.attachments:
+  endpoint: ${S3_ENDPOINT:}
+  region: ${S3_REGION:us-east-1}
+  access-key: ${S3_ACCESS_KEY:}
+  secret-key: ${S3_SECRET_KEY:}
+  staging-bucket: ${S3_STAGING_BUCKET:gc-media-staging}
+  clean-bucket: ${S3_CLEAN_BUCKET:gc-media-clean}
+  quarantine-bucket: ${S3_QUARANTINE_BUCKET:gc-media-quarantine}
+  sign-checksum: ${S3_SIGN_CHECKSUM:true}
+  create-buckets: false

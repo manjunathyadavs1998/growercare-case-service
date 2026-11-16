@@ -1,7 +1,9 @@
 package com.growercare.casesvc.adapters.in.web;
 
 import com.growercare.casesvc.domain.CaseChildren.Activity;
-import com.growercare.casesvc.domain.CaseChildren.Comment;
+import com.growercare.casesvc.application.CommentsAndSharing;
+import com.growercare.casesvc.application.port.ObjectStore;
+import com.growercare.casesvc.domain.attachment.Attachment;
 import com.growercare.casesvc.domain.CaseChildren.Share;
 import com.growercare.casesvc.domain.CaseRecord;
 import com.growercare.casesvc.domain.CaseRules;
@@ -10,10 +12,12 @@ import com.growercare.common.error.NotFoundException;
 import com.growercare.common.error.ValidationException;
 import com.growercare.security.PiiClearance;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 
@@ -47,7 +51,8 @@ final class CaseDtos {
             @NotBlank @Pattern(regexp = "^[0-9a-fA-F-]{36}$") String clientMsgId,
             @NotBlank @Pattern(regexp = "^(PUBLIC|INTERNAL|PARTNER)$") String visibility,
             @NotBlank @Size(max = 4000) String body,
-            @Pattern(regexp = ID) String replyToCommentId) { }
+            @Pattern(regexp = ID) String replyToCommentId,
+            List<@NotBlank @Pattern(regexp = ID) String> attachmentIds) { }   // SPEC-CASE-05 R111 (max 10 → 422, R112)
 
     record CaseView(
             String caseId, String caseNo, String caseType, String status, String priority,
@@ -75,12 +80,43 @@ final class CaseDtos {
     record CasePage(List<CaseView> items, String nextCursor) { }
 
     record CommentView(String commentId, String caseId, String authorUserId, String authorRole, String visibility,
-                       String body, String replyToCommentId, Instant createdAt) {
-        static CommentView of(Comment c) {
+                       String body, String replyToCommentId, Instant createdAt, List<String> attachmentIds) {
+        static CommentView of(CommentsAndSharing.CommentEntry entry) {
+            var c = entry.comment();
             return new CommentView(id(c.commentId()), id(c.caseId()), id(c.authorUserId()), c.authorRole(),
-                    c.visibility().name(), c.body(), id(c.replyToCommentId()), c.createdAt());
+                    c.visibility().name(), c.body(), id(c.replyToCommentId()), c.createdAt(),
+                    entry.attachmentIds().stream().map(CaseDtos::id).toList());
         }
     }
+
+    // ------------------------------------------------------------------------------------------------ attachments (SPEC-CASE-05)
+
+    record RequestAttachmentRequest(
+            @NotBlank @Size(max = 20) String kind,
+            @NotBlank @Size(max = 100) String contentType,
+            @NotNull Long sizeBytes,
+            @NotBlank @Pattern(regexp = "^[0-9a-fA-F]{64}$") String sha256) { }
+
+    record PresignedView(String method, String url, Map<String, String> headers, Instant expiresAt) {
+        static PresignedView of(ObjectStore.PresignedRequest r) {
+            return new PresignedView(r.method(), r.url().toString(), r.headers(), r.expiresAt());
+        }
+    }
+
+    record AttachmentUploadView(String attachmentId, String status, PresignedView upload) { }
+
+    /** No storage keys or bucket names leave the service (SPEC-CASE-05 §3). */
+    record AttachmentView(String attachmentId, String caseId, String commentId, String kind, String contentType,
+                          long sizeBytes, String status, String uploadedByUserId, Instant createdAt, Instant scannedAt) {
+        static AttachmentView of(Attachment a) {
+            return new AttachmentView(id(a.attachmentId()), id(a.caseId()), id(a.commentId()), a.kind(), a.contentType(),
+                    a.sizeBytes(), a.status().name(), id(a.uploadedByUserId()), a.createdAt(), a.scannedAt());
+        }
+    }
+
+    record AttachmentPage(List<AttachmentView> items) { }
+
+    record DownloadView(String url, Instant expiresAt) { }
 
     record CommentPage(List<CommentView> items, String nextCursor) { }
 

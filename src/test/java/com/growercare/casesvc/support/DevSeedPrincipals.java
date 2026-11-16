@@ -19,13 +19,13 @@ public final class DevSeedPrincipals {
 
     private DevSeedPrincipals() { }
 
-    private static final Set<String> GROWER_PERMS = Set.of("case:create", "case:read", "case:share", "comment:read", "comment:post-public");
-    private static final Set<String> RETAILER_PERMS = Set.of("case:create", "case:read", "comment:read", "comment:post-partner");
-    private static final Set<String> CARE_PERMS = Set.of("case:create", "case:read", "case:assign", "case:transition", "comment:read",
+    private static final Set<String> GROWER_PERMS = Set.of("case:create", "case:read", "case:share", "case:attach", "comment:read", "comment:post-public");
+    private static final Set<String> RETAILER_PERMS = Set.of("case:create", "case:read", "case:attach", "comment:read", "comment:post-partner");
+    private static final Set<String> CARE_PERMS = Set.of("case:create", "case:read", "case:assign", "case:transition", "case:attach", "comment:read",
             "comment:post-public", "comment:post-internal", "pii:unmask");
-    private static final Set<String> AGRO_PERMS = Set.of("case:create", "case:read", "case:transition", "comment:read",
+    private static final Set<String> AGRO_PERMS = Set.of("case:create", "case:read", "case:transition", "case:attach", "comment:read",
             "comment:post-public", "comment:post-internal");
-    private static final Set<String> TM_PERMS = Set.of("case:create", "case:read", "case:assign", "case:transition", "comment:read",
+    private static final Set<String> TM_PERMS = Set.of("case:create", "case:read", "case:assign", "case:transition", "case:attach", "comment:read",
             "comment:post-public", "comment:post-internal", "dashboard:read");
 
     public static final GcPrincipal GROWER_IN1 = grower(1, TestJwts.GROWER_IN1, "IN");
@@ -41,6 +41,18 @@ public final class DevSeedPrincipals {
             grant("CARE_AGENT", 30, ScopeKind.COUNTRY, PiiClearance.MASKED, CARE_PERMS, Set.of("BR"), Set.of(), Set.of()));
     public static final GcPrincipal RETAILER_IN = partner(201, TestJwts.RETAILER_IN, 501L);
     public static final GcPrincipal RETAILER2_IN = partner(202, TestJwts.RETAILER2_IN, 502L);
+
+    /**
+     * Test-only (not in the dev seed): an AUDITOR in India, with case:read and comment:read but no case:attach.
+     * Used for "missing permission" rows (SPEC-CASE-05 E105).
+     */
+    public static final GcPrincipal AUDITOR_TEST = staff(901, java.util.UUID.fromString("6f1c0a10-0901-4a00-8000-000000000901"), "IN",
+            grant("AUDITOR", 50, ScopeKind.COUNTRY, PiiClearance.MASKED, Set.of("case:read", "comment:read"), Set.of("IN"), Set.of(), Set.of()));
+
+    /** Every principal the stubbed IAM resolves: the dev seed plus test-only users. */
+    public static List<GcPrincipal> resolvable() {
+        return java.util.stream.Stream.concat(all().stream(), java.util.stream.Stream.of(AUDITOR_TEST)).toList();
+    }
 
     public static List<GcPrincipal> all() {
         return List.of(GROWER_IN1, GROWER_IN2, GROWER_BR1, CARE_IN, AGRO_IN, TM_IN, CARE_BR, RETAILER_IN, RETAILER2_IN);

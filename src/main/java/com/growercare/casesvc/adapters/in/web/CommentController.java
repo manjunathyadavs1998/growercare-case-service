@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -42,8 +43,9 @@ class CommentController {
                 CaseDtos.uuid(body.clientMsgId(), "clientMsgId"),
                 CommentVisibility.valueOf(body.visibility()),
                 body.body(),
-                optionalId(body.replyToCommentId())));
-        return ResponseEntity.status(result.replayed() ? HttpStatus.OK : HttpStatus.CREATED).body(CommentView.of(result.comment()));
+                optionalId(body.replyToCommentId()),
+                body.attachmentIds() == null ? List.of() : body.attachmentIds().stream().map(Long::parseLong).toList()));
+        return ResponseEntity.status(result.replayed() ? HttpStatus.OK : HttpStatus.CREATED).body(CommentView.of(result.entry()));
     }
 
     @GetMapping("/cases/{caseId}/comments")
