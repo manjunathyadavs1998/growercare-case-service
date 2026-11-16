@@ -36,12 +36,14 @@ public class AttachmentsConfig {
      * {@code gc.attachments.*}.
      *
      * @param endpoint       S3 endpoint override (local); empty = AWS regional endpoint
+     * @param publicEndpoint endpoint written into presigned URLs when clients reach storage at another address
+     *                       than the service does (SPEC-CASE-05 R115); empty = {@code endpoint}
      * @param signChecksum   sign {@code x-amz-checksum-sha256} into upload URLs (AWS enforces it); the scan job
      *                       re-verifies the SHA-256 either way (R105)
      * @param createBuckets  create the three buckets at startup (local and tests only)
      */
     @ConfigurationProperties("gc.attachments")
-    public record AttachmentProperties(String endpoint, String region, String accessKey, String secretKey,
+    public record AttachmentProperties(String endpoint, String publicEndpoint, String region, String accessKey, String secretKey,
                                        String stagingBucket, String cleanBucket, String quarantineBucket,
                                        boolean signChecksum, boolean createBuckets) {
         public AttachmentProperties {
@@ -50,6 +52,11 @@ public class AttachmentsConfig {
 
         boolean hasEndpoint() {
             return endpoint != null && !endpoint.isBlank();
+        }
+
+        /** R115: the address presigned URLs carry. */
+        String presignEndpoint() {
+            return publicEndpoint != null && !publicEndpoint.isBlank() ? publicEndpoint : endpoint;
         }
     }
 
@@ -71,7 +78,7 @@ public class AttachmentsConfig {
     S3Presigner s3Presigner(AttachmentProperties props) {
         var builder = S3Presigner.builder().region(Region.of(props.region())).credentialsProvider(credentials(props));
         if (props.hasEndpoint()) {
-            builder.endpointOverride(URI.create(props.endpoint()))
+            builder.endpointOverride(URI.create(props.presignEndpoint()))
                     .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build());
         }
         return builder.build();

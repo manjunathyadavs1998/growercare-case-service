@@ -1,4 +1,15 @@
-# 12-factor: every environment-specific value comes from an env var (defaults = local-dev stack).
+# SPEC-PLAT-06 R76/R77 (ADR-017): every environment-specific value comes ONLY from the environment. Hosts, URLs, users,
+# passwords, secrets and bucket names are placeholders without a default; the service refuses to start, naming every
+# missing variable (gc.required-properties). Behaviour tunables keep safe production defaults. Variables: .env.example.
+gc.required-properties: >-
+  spring.datasource.url, spring.datasource.username, spring.datasource.password,
+  gc.migration.cdc-role,
+  spring.security.oauth2.resourceserver.jwt.issuer-uri, spring.security.oauth2.resourceserver.jwt.jwk-set-uri,
+  spring.security.oauth2.client.registration.iam.client-id, spring.security.oauth2.client.registration.iam.client-secret,
+  spring.security.oauth2.client.provider.keycloak.token-uri,
+  gc.iam.base-url, spring.data.redis.host, spring.data.redis.password, spring.kafka.bootstrap-servers,
+  gc.attachments.region, gc.attachments.staging-bucket, gc.attachments.clean-bucket, gc.attachments.quarantine-bucket
+
 server:
   port: ${SERVER_PORT:8082}
   shutdown: graceful
@@ -15,8 +26,8 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 20s
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/gc_case}
-    username: ${DB_APP_USER:gc_case_app}
+    url: ${DB_URL}
+    username: ${DB_APP_USER}
     password: ${DB_APP_PASSWORD}
     hikari:
       maximum-pool-size: ${DB_POOL_SIZE:20}
@@ -24,12 +35,12 @@ spring:
   flyway:
     enabled: false   # Boot's single-schema Flyway is not used; see gc.migration (ShardedFlywayMigrator)
 
-# SPEC-PLAT-01 D1: API docs off by default; the local profile turns them on.
+# SPEC-PLAT-01 D1: API docs off unless GC_API_DOCS_ENABLED=true (local).
 springdoc:
   api-docs:
-    enabled: false
+    enabled: ${GC_API_DOCS_ENABLED:false}
   swagger-ui:
-    enabled: false
+    enabled: ${GC_API_DOCS_ENABLED:false}
 
 management:
   endpoints:
@@ -44,20 +55,22 @@ management:
 
 gc:
   # Sharded migrations (common `ref` schema + one schema per ref.shard row), run as the schema OWNER.
-  # In production set GC_MIGRATE=false on the service and run migrations from a pre-deploy Job.
+  # Production: GC_MIGRATE=false on the service, migrations from a pre-deploy Job (owner credentials only there).
   migration:
-    enabled: ${GC_MIGRATE:true}
-    owner-user: ${DB_OWNER_USER:gc_case_owner}
+    enabled: ${GC_MIGRATE:false}
+    owner-user: ${DB_OWNER_USER:}
     owner-password: ${DB_OWNER_PASSWORD:}
     app-role: ${spring.datasource.username}
-    cdc-role: ${GC_CDC_ROLE:gc_cdc}
-    dev-seed: false
+    cdc-role: ${GC_CDC_ROLE}
+    dev-seed: ${GC_DEV_SEED:false}                 # local only: dev users, growers, products
     parallelism: ${GC_MIGRATE_PARALLELISM:8}
 
 # ---------------------------------------------------------------- security (skill: java-security-rbac)
-# Keycloak proves identity; roles/scopes come from IAM grants. Issuer, signature, expiry and audience are validated.
+# Keycloak proves identity; roles/scopes come from IAM grants. Tokens carry iss = OIDC_ISSUER_URI (validated);
+# signing keys come from OIDC_JWKS_URI and service tokens from OIDC_TOKEN_URI (reachable inside the network).
 spring.security.oauth2.resourceserver.jwt:
-  issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8180/realms/growercare}
+  issuer-uri: ${OIDC_ISSUER_URI}
+  jwk-set-uri: ${OIDC_JWKS_URI}
   audiences: gc-api,gc-internal
 
 # Client-credentials token for calling IAM's /internal API (Keycloak client "case-service", audience gc-internal).
@@ -65,33 +78,35 @@ spring.security.oauth2.client:
   registration:
     iam:
       provider: keycloak
-      client-id: ${IAM_CLIENT_ID:case-service}
-      client-secret: ${IAM_CLIENT_SECRET:}
+      client-id: ${IAM_CLIENT_ID}
+      client-secret: ${IAM_CLIENT_SECRET}
       authorization-grant-type: client_credentials
   provider:
     keycloak:
-      token-uri: ${OIDC_ISSUER_URI:http://localhost:8180/realms/growercare}/protocol/openid-connect/token
+      token-uri: ${OIDC_TOKEN_URI}
 
 # Redis: grant cache only (ADR-011). Short timeouts so an outage degrades to direct IAM calls.
 spring.data.redis:
-  host: ${REDIS_HOST:localhost}
+  host: ${REDIS_HOST}
   port: ${REDIS_PORT:6379}
-  password: ${REDIS_PASSWORD:}
+  password: ${REDIS_PASSWORD}
   timeout: 500ms
   connect-timeout: 500ms
 
+# Another service, reached only over the network (SPEC-PLAT-06 R75).
 gc.iam:
-  base-url: ${IAM_BASE_URL:http://localhost:8081}
+  base-url: ${IAM_BASE_URL}
   connect-timeout: 1s
   read-timeout: 2s
 gc.security:
   principal-cache-ttl: 5m
+  cors-allowed-origins: ${GC_CORS_ALLOWED_ORIGINS:}
 
 # ---------------------------------------------------------------- events (SPEC-PLAT-04)
 # Publishing is Debezium's job (outbox → Kafka); the service only consumes. Production adds MSK IAM auth + TLS
 # through SPRING_KAFKA_* environment variables.
 spring.kafka:
-  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
   consumer:
     auto-offset-reset: earliest
     enable-auto-commit: false
@@ -108,14 +123,16 @@ gc.events:
   retry-initial-backoff: 1s
 
 # ---------------------------------------------------------------- attachments (SPEC-CASE-05)
-# AWS: leave endpoint and keys empty (regional endpoint + IRSA); buckets are created by gc-infra.
+# AWS: leave S3_ENDPOINT, S3_PUBLIC_ENDPOINT and the keys EMPTY (regional endpoint + IRSA credentials).
+# Local: S3_ENDPOINT is the in-network address; S3_PUBLIC_ENDPOINT the address clients use in presigned URLs (R115).
 gc.attachments:
   endpoint: ${S3_ENDPOINT:}
-  region: ${S3_REGION:us-east-1}
+  public-endpoint: ${S3_PUBLIC_ENDPOINT:}
+  region: ${S3_REGION}
   access-key: ${S3_ACCESS_KEY:}
   secret-key: ${S3_SECRET_KEY:}
-  staging-bucket: ${S3_STAGING_BUCKET:gc-media-staging}
-  clean-bucket: ${S3_CLEAN_BUCKET:gc-media-clean}
-  quarantine-bucket: ${S3_QUARANTINE_BUCKET:gc-media-quarantine}
+  staging-bucket: ${S3_STAGING_BUCKET}
+  clean-bucket: ${S3_CLEAN_BUCKET}
+  quarantine-bucket: ${S3_QUARANTINE_BUCKET}
   sign-checksum: ${S3_SIGN_CHECKSUM:true}
-  create-buckets: false
+  create-buckets: ${S3_CREATE_BUCKETS:false}      # local/tests only; production buckets come from gc-infra

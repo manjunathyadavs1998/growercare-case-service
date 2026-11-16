@@ -42,6 +42,7 @@ Status machine: `AWAITING_UPLOAD → PENDING → CLEAN | INFECTED | REJECTED`, a
 | CASE-R111 | the caller's own attachments on the case (not linked, not INFECTED/REJECTED/EXPIRED) | `POST /cases/{id}/comments {…, attachmentIds}` | the comment is created and the attachments linked in the same transaction; CommentView lists them; `comment.posted` carries `attachmentIds` |
 | CASE-R112 | an attachment id belongs to another user or case, is already linked, is unusable, or there are more than 10 | post comment | 422 `comment.attachment-invalid` (nothing is created) |
 | CASE-R114 | a PENDING attachment whose processing throws (staging object gone, storage error, unexpected parser failure) | scan job | **only that attachment** is rolled back and skipped for this run (ERROR log, ids only); the other attachments of the shard are still processed in the same run. Its `scan_attempts` is incremented; after **3** failed attempts it becomes **REJECTED** (event `REJECTED`), so a poison file can't block the queue |
+| CASE-R115 | the service reaches storage at an internal address (`S3_ENDPOINT`, e.g. `seaweedfs:8333` in a container network) | an upload or download URL is presigned | the URL uses `S3_PUBLIC_ENDPOINT` when it is set (the address clients reach, e.g. `localhost:8333`), otherwise `S3_ENDPOINT`. AWS sets neither (regional endpoint). The service's own S3 calls keep using `S3_ENDPOINT` (ADR-017) |
 | CASE-R113 | AWAITING_UPLOAD rows older than 24 h | the expiry job runs | EXPIRED, staging object deleted if present; newer rows unchanged; per shard with R95 isolation |
 
 ## 2. Examples (each row = one parameterized test row)
@@ -69,6 +70,7 @@ Fixtures: case A (grower.in1, IN, shared with retailer 501). `jpeg` = a small re
 | CASE-E119 | R111 | care.in | INTERNAL comment with `attachmentIds` = [own CLEAN photo] | 201; CommentView lists it; grower.in1 can no longer see that attachment (inherits INTERNAL) |
 | CASE-E120 | R112 | grower.in1 | `attachmentIds` = [care.in's] · [already linked] · [INFECTED] · 11 ids | 422 `comment.attachment-invalid` each; no comment row |
 | CASE-E122 | R114 | — | two PENDING uploads; the first's staging object is deleted behind the service | run 1: the second is CLEAN, the first stays PENDING (attempts = 1); runs 2 and 3: the first becomes REJECTED with one `REJECTED` event |
+| CASE-E123 | R115 | — | endpoint `http://seaweedfs:8333`, public endpoint `http://localhost:8333` · public endpoint unset | presigned PUT/GET host `localhost:8333` · `seaweedfs:8333` |
 | CASE-E121 | R113 | — | AWAITING_UPLOAD aged 25 h (object present) and 1 h | 25 h → EXPIRED + staging object deleted; 1 h unchanged |
 
 Note E105: if every IN staff role ends up with `case:attach`, the 403 row uses a token without the permission (`TestJwts` user with an empty grant), like the existing permission tests.
@@ -111,6 +113,7 @@ AttachmentView: `{attachmentId, caseId, commentId?, kind, contentType, sizeBytes
 | R100–R102 / E108–E110 | `CaseAttachmentsIT$Completing` |
 | R103–R107 / E111–E115 | `CaseAttachmentsIT$Scanning` · `ImageMetadataStripperTest` · `MagicBytesTest` · `EicarScannerTest` |
 | R108–R112 / E116–E120 | `CaseAttachmentsIT$VisibilityAndComments` (`#listIsFilteredPerCaller`, `#caseE117…`, `#notDownloadable`, `#caseE119…`, `#invalidLinksRejectTheWholeComment`) |
+| R115 / E123 | `PresignedEndpointTest` (parameterized) |
 | R113 / E121 | `CaseAttachmentsIT$Expiry` |
 | R114 / E122 | `CaseAttachmentsIT$Scanning#caseE122OneBrokenAttachmentDoesNotBlockTheShard` |
 | D7 / E103–E104 (unit) | `AttachmentRulesTest` |

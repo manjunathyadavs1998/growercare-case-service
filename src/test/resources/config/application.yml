@@ -1,0 +1,19 @@
+# Test values for the environment variables application.yml reads (SPEC-PLAT-06 R77). Tests override the real
+# connection settings with Testcontainers (DynamicPropertySource), stub IAM and decode JWTs with TestJwts.
+DB_URL: jdbc:postgresql://set-by-testcontainers.invalid/none
+DB_APP_USER: set-by-testcontainers
+DB_APP_PASSWORD: set-by-testcontainers
+GC_CDC_ROLE: gc_cdc
+OIDC_ISSUER_URI: http://issuer.test.invalid/realms/growercare
+OIDC_JWKS_URI: http://issuer.test.invalid/realms/growercare/protocol/openid-connect/certs
+OIDC_TOKEN_URI: http://issuer.test.invalid/realms/growercare/protocol/openid-connect/token
+IAM_BASE_URL: http://iam.test.invalid
+IAM_CLIENT_ID: case-service
+IAM_CLIENT_SECRET: test-secret
+REDIS_HOST: set-by-testcontainers.invalid
+REDIS_PASSWORD: set-by-testcontainers
+KAFKA_BOOTSTRAP_SERVERS: kafka.test.invalid:9092
+S3_REGION: us-east-1
+S3_STAGING_BUCKET: gc-media-staging
+S3_CLEAN_BUCKET: gc-media-clean
+S3_QUARANTINE_BUCKET: gc-media-quarantine
