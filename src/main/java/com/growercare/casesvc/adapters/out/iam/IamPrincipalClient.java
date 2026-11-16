@@ -9,13 +9,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.web.client.HttpStatusCodeException;
-import org.springframework.web.client.ResourceAccessException;
+import org.springframework.security.oauth2.core.OAuth2AuthorizationException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 /**
  * Resolves principals through identity-access-service ({@code GET /internal/users/{sub}/principal}) using a
  * client-credentials token (Keycloak client {@code case-service}, audience {@code gc-internal}).
- * 404 → no active account; network errors, timeouts and 5xx → {@link DependencyUnavailableException} (503, fail closed).
+ * 404 → no active account; anything else that prevents a principal (network errors, timeouts, unreadable bodies, 5xx,
+ * token endpoint failures) → {@link DependencyUnavailableException} (503, fail closed; SPEC-CASE-01 R9/R9a).
  */
 public final class IamPrincipalClient {
 
@@ -52,7 +54,9 @@ public final class IamPrincipalClient {
                 return Optional.empty();
             }
             throw new DependencyUnavailableException("identity-access-service", e);
-        } catch (ResourceAccessException | IllegalStateException e) {
+        } catch (RestClientException                    // network, timeouts, unreadable body (R9a)
+                 | OAuth2AuthorizationException  // token endpoint failed (R9a)
+                 | IllegalStateException e) {
             throw new DependencyUnavailableException("identity-access-service", e);
         }
     }

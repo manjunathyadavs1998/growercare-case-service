@@ -15,6 +15,7 @@
 | CASE-R7 | — | request without a valid token | 401 problem |
 | CASE-R8 | valid token, no account | any request | 401 |
 | CASE-R9 | IAM unreachable | any request | 503 `DEPENDENCY_UNAVAILABLE` (fail closed) |
+| CASE-R9a | IAM answers too slowly or with an unreadable body (e.g. read timeout mid-response on a cold start), or the token endpoint fails | any request | 503 `DEPENDENCY_UNAVAILABLE`, **never 500**: every failure to obtain a principal is a dependency failure (found by the containerised end-to-end run, ADR-017) |
 | CASE-R10 | service token not allow-listed | user API | 401 |
 | CASE-R11 | Redis unavailable | principal lookup | served from IAM (degraded, not failed); unknown accounts never cached |
 | CASE-R12 | browser | CORS preflight | allowed only for configured origins; API responses carry CSP, nosniff, no-store |
@@ -46,10 +47,19 @@
 
 **Unit examples (`PolicyEnforcer`, `ScopeFilter`):** country/territory/BU coverage, OWN, ORG, ASSIGNED, expired grant, GLOBAL, missing permission → 404, OR-ed grants with bound parameters, unsafe column fragment rejected.
 
+### IAM failures (R9, R9a)
+| Example | Rule | IAM behaviour | Expected from the client |
+|---|---|---|---|
+| CASE-E124 | R9 | 5xx | `DependencyUnavailableException` (→ 503) |
+| CASE-E125 | R9a | response body that cannot be read (connection closed mid-body) | `DependencyUnavailableException` |
+| CASE-E126 | R9a | token endpoint refuses the client-credentials grant | `DependencyUnavailableException` |
+| CASE-E127 | — | 404 | no principal (unknown account → 401) |
+
 ## 3. Traceability
 | Rule / Example | Test |
 |---|---|
 | E01–E09, R5 | `CaseIsolationIT` (parameterized: SQL rows + policy rows + revoked share) |
 | R1–R6 unit | `PolicyEnforcerTest`, `ScopeFilterTest` (parameterized) |
+| R9, R9a / E124–E127 | `IamPrincipalClientTest#iamFailuresFailClosed` (parameterized) |
 | R7–R10, R12 | `CaseSecurityIT` |
 | R11 | `CachingPrincipalResolverIT` |

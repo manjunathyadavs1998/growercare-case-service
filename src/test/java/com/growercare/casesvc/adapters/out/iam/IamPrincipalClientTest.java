@@ -2,12 +2,24 @@ package com.growercare.casesvc.adapters.out.iam;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.params.provider.Arguments.argumentSet;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withResourceNotFound;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.http.HttpStatus;
+import org.springframework.mock.http.client.MockClientHttpResponse;
+import org.springframework.security.oauth2.client.ClientAuthorizationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.test.web.client.ResponseCreator;
 import com.growercare.casesvc.support.DevSeedPrincipals;
 import com.growercare.common.error.DependencyUnavailableException;
 import java.time.Instant;
@@ -51,14 +63,51 @@ class IamPrincipalClientTest {
         server.verify();
     }
 
-    @Test
-    void unknownAccountIsEmptyAndFailuresAreDependencyUnavailable() {
-        var subject = DevSeedPrincipals.CARE_IN.subject();
-        server.expect(requestTo("http://iam.test/internal/users/" + subject + "/principal")).andRespond(withResourceNotFound());
-        assertThat(client.resolve(subject)).isEmpty();
+    /** A response whose body stream breaks mid-read, like a read timeout on a cold start (CASE-E125). */
+    static ResponseCreator truncatedBody() {
+        return request -> new MockClientHttpResponse(new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException("closed");
+            }
+        }, HttpStatus.OK) {
+            {
+                getHeaders().setContentType(MediaType.APPLICATION_JSON);
+            }
+        };
+    }
 
-        server.reset();
-        server.expect(requestTo("http://iam.test/internal/users/" + subject + "/principal")).andRespond(withServerError());
-        assertThatThrownBy(() -> client.resolve(subject)).isInstanceOf(DependencyUnavailableException.class);
+    static final OAuth2AuthorizedClientManager REFUSING_TOKENS = request -> {
+        throw new ClientAuthorizationException(
+                new OAuth2Error("invalid_client"), "iam");
+    };
+
+    /** IAM behaviour (null = token endpoint fails first), expected: empty principal (true) or dependency failure (false). */
+    static Stream<Arguments> failures() {
+        return Stream.of(
+                argumentSet("CASE-E124 IAM 5xx", withServerError(), false),
+                argumentSet("CASE-E125 unreadable body (cold-start read timeout)", truncatedBody(), false),
+                argumentSet("CASE-E126 token endpoint refuses", null, false),
+                argumentSet("CASE-E127 404 = no account", withResourceNotFound(), true));
+    }
+
+    @ParameterizedTest
+    @MethodSource("failures")
+    void iamFailuresFailClosed(ResponseCreator response, boolean noAccount) {
+        var subject = DevSeedPrincipals.CARE_IN.subject();
+        var target = client;
+        if (response == null) {
+            var builder = RestClient.builder().baseUrl("http://iam.test");
+            MockRestServiceServer.bindTo(builder).build();
+            target = new IamPrincipalClient(builder.build(), REFUSING_TOKENS);
+        } else {
+            server.expect(requestTo("http://iam.test/internal/users/" + subject + "/principal")).andRespond(response);
+        }
+        var finalTarget = target;
+        if (noAccount) {
+            assertThat(finalTarget.resolve(subject)).isEmpty();
+        } else {
+            assertThatThrownBy(() -> finalTarget.resolve(subject)).isInstanceOf(DependencyUnavailableException.class);
+        }
     }
 }
