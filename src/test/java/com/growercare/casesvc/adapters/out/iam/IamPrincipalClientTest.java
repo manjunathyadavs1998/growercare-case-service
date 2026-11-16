@@ -2,12 +2,24 @@ package com.growercare.casesvc.adapters.out.iam;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.params.provider.Arguments.argumentSet;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withResourceNotFound;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.http.HttpStatus;
+import org.springframework.mock.http.client.MockClientHttpResponse;
+import org.springframework.security.oauth2.client.ClientAuthorizationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.test.web.client.ResponseCreator;
 import com.growercare.casesvc.support.DevSeedPrincipals;
 import com.growercare.common.error.DependencyUnavailableException;
 import java.time.Instant;
@@ -52,13 +64,13 @@ class IamPrincipalClientTest {
     }
 
     /** A response whose body stream breaks mid-read, like a read timeout on a cold start (CASE-E125). */
-    static org.springframework.test.web.client.ResponseCreator truncatedBody() {
-        return request -> new org.springframework.mock.http.client.MockClientHttpResponse(new java.io.InputStream() {
+    static ResponseCreator truncatedBody() {
+        return request -> new MockClientHttpResponse(new InputStream() {
             @Override
-            public int read() throws java.io.IOException {
-                throw new java.io.IOException("closed");
+            public int read() throws IOException {
+                throw new IOException("closed");
             }
-        }, org.springframework.http.HttpStatus.OK) {
+        }, HttpStatus.OK) {
             {
                 getHeaders().setContentType(MediaType.APPLICATION_JSON);
             }
@@ -66,22 +78,22 @@ class IamPrincipalClientTest {
     }
 
     static final OAuth2AuthorizedClientManager REFUSING_TOKENS = request -> {
-        throw new org.springframework.security.oauth2.client.ClientAuthorizationException(
-                new org.springframework.security.oauth2.core.OAuth2Error("invalid_client"), "iam");
+        throw new ClientAuthorizationException(
+                new OAuth2Error("invalid_client"), "iam");
     };
 
     /** IAM behaviour (null = token endpoint fails first), expected: empty principal (true) or dependency failure (false). */
-    static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> failures() {
-        return java.util.stream.Stream.of(
-                org.junit.jupiter.params.provider.Arguments.argumentSet("CASE-E124 IAM 5xx", withServerError(), false),
-                org.junit.jupiter.params.provider.Arguments.argumentSet("CASE-E125 unreadable body (cold-start read timeout)", truncatedBody(), false),
-                org.junit.jupiter.params.provider.Arguments.argumentSet("CASE-E126 token endpoint refuses", null, false),
-                org.junit.jupiter.params.provider.Arguments.argumentSet("CASE-E127 404 = no account", withResourceNotFound(), true));
+    static Stream<Arguments> failures() {
+        return Stream.of(
+                argumentSet("CASE-E124 IAM 5xx", withServerError(), false),
+                argumentSet("CASE-E125 unreadable body (cold-start read timeout)", truncatedBody(), false),
+                argumentSet("CASE-E126 token endpoint refuses", null, false),
+                argumentSet("CASE-E127 404 = no account", withResourceNotFound(), true));
     }
 
-    @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.MethodSource("failures")
-    void iamFailuresFailClosed(org.springframework.test.web.client.ResponseCreator response, boolean noAccount) {
+    @ParameterizedTest
+    @MethodSource("failures")
+    void iamFailuresFailClosed(ResponseCreator response, boolean noAccount) {
         var subject = DevSeedPrincipals.CARE_IN.subject();
         var target = client;
         if (response == null) {

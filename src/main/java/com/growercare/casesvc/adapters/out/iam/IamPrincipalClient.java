@@ -9,7 +9,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.security.oauth2.core.OAuth2AuthorizationException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 /**
  * Resolves principals through identity-access-service ({@code GET /internal/users/{sub}/principal}) using a
@@ -52,8 +54,8 @@ public final class IamPrincipalClient {
                 return Optional.empty();
             }
             throw new DependencyUnavailableException("identity-access-service", e);
-        } catch (org.springframework.web.client.RestClientException                    // network, timeouts, unreadable body (R9a)
-                 | org.springframework.security.oauth2.core.OAuth2AuthorizationException  // token endpoint failed (R9a)
+        } catch (RestClientException                    // network, timeouts, unreadable body (R9a)
+                 | OAuth2AuthorizationException  // token endpoint failed (R9a)
                  | IllegalStateException e) {
             throw new DependencyUnavailableException("identity-access-service", e);
         }
