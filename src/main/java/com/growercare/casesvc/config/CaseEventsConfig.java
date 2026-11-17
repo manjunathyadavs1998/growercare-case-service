@@ -44,7 +44,7 @@ public class CaseEventsConfig {
         var backOff = new ExponentialBackOff(initialBackoff.toMillis(), 2.0);
         backOff.setMaxAttempts(RETRIES);
         var handler = new DefaultErrorHandler(recoverer, backOff);
-        handler.addNotRetryableExceptions(MalformedEventException.class);
+        handler.addNotRetryableExceptions(MalformedEventException.class, com.growercare.common.error.ConflictException.class);   // D10
         return handler;
     }
 }

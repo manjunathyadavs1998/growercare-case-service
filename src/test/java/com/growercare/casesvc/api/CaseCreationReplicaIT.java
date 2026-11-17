@@ -89,6 +89,38 @@ class CaseCreationReplicaIT extends CaseApiTestBase {
     }
 
     @Test
+    void CASE_E147_aGrowerOfACountryTheCallerCannotCreateInIsNeverFetched() throws Exception {
+        var grower = newGrower(null, "ACTIVE");                                   // an IN grower
+        problem(create(com.growercare.casesvc.support.DevSeedPrincipals.CARE_BR, caseFor(grower.growerId()), UUID.randomUUID()),
+                404, "NOT_FOUND");
+        assertThat(growerDirectory.calls(grower.growerId())).isZero();
+        assertThat(replicaRows(grower.growerId())).isZero();
+    }
+
+    static Stream<Arguments> outOfScope() {
+        return Stream.of(
+                argumentSet("CASE-E148 Karnataka grower for tm.in (Maharashtra)", 1005L, null),
+                argumentSet("CASE-E148 same grower with a partner case-service does not know: still 404, never 503", 1005L, 999L));
+    }
+
+    @ParameterizedTest
+    @MethodSource("outOfScope")
+    void aFetchedGrowerOutsideTheCallersScopeIs404AndNotStored(long territory, Long partner) throws Exception {
+        long id = CaseTestDatabase.nextGrowerIdInTestShards("IN");
+        growerDirectory.put(new GrowerReplica(id, "IN", territory, null, "Out of scope", new byte[32], "0000", partner, "ACTIVE", 0));
+        problem(create(com.growercare.casesvc.support.DevSeedPrincipals.TM_IN, caseFor(id), UUID.randomUUID()), 404, "NOT_FOUND");
+        assertThat(replicaRows(id)).isZero();
+    }
+
+    @Test
+    void CASE_E149_aGrowerWhoseUserIsLinkedToAnotherReplicaGrowerIsAConflict() throws Exception {
+        long id = CaseTestDatabase.nextGrowerIdInTestShards("IN");
+        growerDirectory.put(new GrowerReplica(id, "IN", 1003L, 1L /* already G1's user */, "Conflict", new byte[32], "0000", null, "ACTIVE", 0));
+        problem(create(CARE_IN, caseFor(id), UUID.randomUUID()), 409, "DUPLICATE");
+        assertThat(replicaRows(id)).isZero();
+    }
+
+    @Test
     void CASE_E144_aReplicatedGrowerNeedsNoCallToGrowerService() throws Exception {
         int before = growerDirectory.calls(SeedGrowers.G1);
         createCase(CARE_IN, complaint());

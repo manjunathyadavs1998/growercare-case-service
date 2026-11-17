@@ -164,6 +164,8 @@ class GrowerReplicaConsumerIT extends CaseApiTestBase {
                 argumentSet("CASE-E135 grower-service down", (LongFunction<String>) id -> "down", "DependencyUnavailableException", 4),
                 argumentSet("CASE-E135 territory unknown to case-service", (LongFunction<String>) id -> "territory", "DependencyUnavailableException", 4),
                 argumentSet("CASE-E135 partner unknown to case-service", (LongFunction<String>) id -> "partner", "DependencyUnavailableException", 4),
+                argumentSet("CASE-E149 user already linked to another replica grower: permanent, no retries",
+                        (LongFunction<String>) id -> "conflict", "ConflictException", 1),
                 argumentSet("CASE-E136 not JSON", (LongFunction<String>) id -> "value:not-json", "MalformedEventException", 0),
                 argumentSet("CASE-E136 envelope without eventId", (LongFunction<String>) id -> "value:{\"eventType\":\"grower.registered\",\"data\":{\"growerId\":\"" + id + "\"}}",
                         "MalformedEventException", 0),
@@ -183,6 +185,7 @@ class GrowerReplicaConsumerIT extends CaseApiTestBase {
             switch (mode) {
                 case "down" -> growerDirectory.failFor(id);
                 case "territory" -> growerDirectory.put(grower(id, 9999, null, 0));
+                case "conflict" -> growerDirectory.put(new GrowerReplica(id, "IN", 1003, 1L, "Conflict", new byte[32], "0000", null, "ACTIVE", 0));
                 default -> growerDirectory.put(grower(id, 1003, 999L, 0));
             }
             value = event(UUID.randomUUID(), "grower.registered", Long.toString(id));

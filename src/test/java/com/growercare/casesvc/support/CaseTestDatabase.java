@@ -71,12 +71,18 @@ public final class CaseTestDatabase {
         return db;
     }
 
-    private static final java.util.concurrent.atomic.AtomicLong NEXT_GROWER = new java.util.concurrent.atomic.AtomicLong(9_200_000L);
+    private static final java.util.concurrent.atomic.AtomicInteger NEXT_GROWER = new java.util.concurrent.atomic.AtomicInteger();
 
-    /** A fresh grower id (not in any seed) whose cases route to a shard of the light test database. */
+    /**
+     * A fresh grower id (not in any seed), encoded like grower-service's ids (it decodes to {@code country}, so the
+     * read-through precondition of SPEC-CASE-06 D9 accepts it), whose cases route to a shard of the light test database.
+     */
     public static long nextGrowerIdInTestShards(String country) {
+        int countryIx = ROUTER.countries().byCode(country).orElseThrow().countryIx();
         while (true) {
-            long id = NEXT_GROWER.getAndIncrement();
+            int n = NEXT_GROWER.getAndIncrement();
+            long id = com.growercare.shard.IdCodec.encode(java.time.Instant.parse("2026-11-02T00:00:00Z").plusMillis(n / 1024),
+                    countryIx, n % 64, n % 1024);
             if (TEST_SHARDS.contains(ROUTER.forGrower(country, id))) {
                 return id;
             }
