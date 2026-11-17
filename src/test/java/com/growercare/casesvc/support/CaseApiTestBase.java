@@ -142,7 +142,7 @@ public abstract class CaseApiTestBase {
         body.put("caseType", "PRODUCT_COMPLAINT");
         body.put("title", "Leaves yellowing after spray");
         body.put("description", "Brown spots appeared three days after spraying.");
-        body.put("farmId", "80001");
+        body.put("farmId", SeedGrowers.id(SeedGrowers.FARM_G1));
         body.put("productId", "9001");
         body.put("batchNo", "AZX2604-117");
         return body;

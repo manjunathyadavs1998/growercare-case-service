@@ -19,10 +19,10 @@ public final class SeedGrowers {
     public static final long G4 = 110165911142966276L;   // Joao Silva, user 3 (grower.br1), BR Ribeirão Preto 2002
     public static final long K1 = 9_100_001L;            // test-only: ACTIVE assisted grower, IN Bengaluru Rural 1005
 
-    /** Farms after D6: 80001–80004 belong to G1–G4; 80005 (test-only) to K1. */
-    public static final long FARM_G1 = 80001L;
-    public static final long FARM_G2 = 80002L;
-    public static final long FARM_G4 = 80003L;
+    /** Farms after D6: 80011–80014 belong to G1, G2, G4, G3; 80001–80004 stay with the inactive 70001-style rows; 80005 (test-only) to K1. */
+    public static final long FARM_G1 = 80011L;
+    public static final long FARM_G2 = 80012L;
+    public static final long FARM_G4 = 80013L;
     public static final long FARM_K1 = 80005L;
 
     public static String id(long growerId) {
