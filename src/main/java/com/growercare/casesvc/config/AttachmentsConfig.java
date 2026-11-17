@@ -58,6 +58,15 @@ public class AttachmentsConfig {
         String presignEndpoint() {
             return publicEndpoint != null && !publicEndpoint.isBlank() ? publicEndpoint : endpoint;
         }
+
+        /** SPEC-PLAT-06 R82: never prints the access or secret key (a record's generated toString would). */
+        @Override
+        public String toString() {
+            return ("AttachmentProperties[endpoint=%s, publicEndpoint=%s, region=%s, accessKey=%s, secretKey=%s, stagingBucket=%s, "
+                    + "cleanBucket=%s, quarantineBucket=%s, signChecksum=%s, createBuckets=%s]").formatted(endpoint, publicEndpoint,
+                    region, accessKey == null ? null : "****", secretKey == null ? null : "****", stagingBucket, cleanBucket,
+                    quarantineBucket, signChecksum, createBuckets);
+        }
     }
 
     @Bean(destroyMethod = "close")
