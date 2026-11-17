@@ -13,7 +13,7 @@
 | D3 | **Upserts are version-guarded** (`… WHERE ref.x.version < EXCLUDED.version`), like `ref.grower` | Out-of-order events never roll a row back |
 | D4 | **A case accepts only an ACTIVE farm of the case's grower:** an archived farm is 422 `case.farm-not-active`; another grower's farm stays 422 `case.farm-not-of-grower` (CASE-R25) | SPEC-GRW-02 D5 |
 | D5 | **Product rules stay CASE-R25:** registered (`REGISTERED`, valid) in the case's country, batch of that product. A batch unknown to catalog-registry is 422 `case.batch-unknown` | Unchanged behaviour, now on real data |
-| D6 | **Seeds retired, rows kept:** the dev-seed products 9001–9003 and farms 80011–80014 stay as version-0 rows (existing cases reference them by FK) and are overwritten by the owners' events (catalog and grower dev seeds use the same ids). No new product or farm seed rows in case-service | PRD M2; FKs forbid deleting the old rows |
+| D6 | **Seeds retired, rows kept:** the dev-seed products 9001–9003 and farms 80011–80014 stay as version -1 rows (R182) (existing cases reference them by FK) and are overwritten by the owners' events (catalog and grower dev seeds use the same ids). No new product or farm seed rows in case-service | PRD M2; FKs forbid deleting the old rows |
 | D7 | **Read-through failures:** owner unreachable → 503 `DEPENDENCY_UNAVAILABLE` (nothing written); owner says 404 → the normal 422 rule (farm-not-of-grower / product-not-registered / batch-unknown) | Same mapping as CASE-06 R142/D10 |
 | D8 | **Scope first** (CASE-06 D9): the grower is checked before any read-through, so an out-of-scope caller never triggers a call to another service | No probing other services through case-service |
 
@@ -42,7 +42,7 @@
 | Rule | Given | When | Then |
 |---|---|---|---|
 | CASE-R180 | `ref.farm`, `ref.product`, `ref.product_registration`, `ref.product_batch` | expand migration | gain `version NOT NULL DEFAULT -1` (`integer` on `ref.farm`, `bigint` on the catalog tables; -1 marks pre-existing rows, R182); `ref.farm` gains `status` (ACTIVE/ARCHIVED, default ACTIVE); the runtime role may INSERT/UPDATE these four tables (still read-only on the other `ref` tables) |
-| CASE-R181 | dev seed | migration | no new seed rows; existing 9001–9003 / 80011–80014 rows unchanged (D6) |
+| CASE-R181 | dev seed | migration | no new seed rows; existing 9001–9003 / 80011–80014 rows unchanged except their version, -1 (D6, R182) |
 | CASE-R182 | a replica row that existed before the expand migration (seed copy, D6) | the owner's first event or read-through, at any owner version (0 included) | the owner's state replaces it: pre-existing rows carry version -1 |
 
 ## 2. Examples

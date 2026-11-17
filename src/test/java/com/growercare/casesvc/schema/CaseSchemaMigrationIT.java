@@ -247,9 +247,10 @@ class CaseSchemaMigrationIT {
                     .query((rs, n) -> new Object[] {rs.getString(1), rs.getObject(2, Long.class)}).single();
             assertThat(row[0]).isEqualTo(status);
             assertThat(row[1]).isEqualTo(userId);
-            var farms = owner.sql("SELECT farm_id FROM ref.farm WHERE grower_id = ?").param(growerId).query(Long.class).list();
-            // contains, not equals: other tests add read-through farms to the seed growers (SPEC-CASE-08 R170)
-            assertThat(farms).contains(farmId);
+            // farms from 9,200,000 up are test-only read-through farms (StubReferenceOwners, SPEC-CASE-08 R170)
+            var farms = owner.sql("SELECT farm_id FROM ref.farm WHERE grower_id = ? AND farm_id < 9200000").param(growerId)
+                    .query(Long.class).list();
+            assertThat(farms).isEqualTo(farmId == null ? java.util.List.of() : java.util.List.of(farmId));
         }
     }
 
