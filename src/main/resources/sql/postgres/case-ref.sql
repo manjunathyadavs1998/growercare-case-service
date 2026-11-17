@@ -71,3 +71,11 @@ SELECT count(*) FROM ref.case_queue q WHERE q.queue_code = :queueCode
 
 -- name: activeCountries
 SELECT c.country_code FROM ref.country c WHERE c.active
+
+-- SPEC-CASE-09 D1: every edge out of a status, with the permission it needs.
+-- name: transitionsFrom
+SELECT tr.to_status, tr.required_permission, ts.is_closed AS to_closed
+  FROM ref.case_transition tr
+  JOIN ref.case_status ts ON ts.case_type_code = tr.case_type_code AND ts.status_code = tr.to_status
+ WHERE tr.case_type_code = :caseType AND tr.from_status = :fromStatus
+ ORDER BY tr.to_status

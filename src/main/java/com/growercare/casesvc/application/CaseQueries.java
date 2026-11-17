@@ -71,6 +71,24 @@ public class CaseQueries {
         return access.byId(CurrentPrincipal.require(), "case:read", caseId).record();
     }
 
+    /** SPEC-CASE-09: what the caller may do next with a case, by the same checks the actions apply. */
+    public record AllowedActions(List<ReferenceData.Edge> transitions, boolean canAssign) { }
+
+    /**
+     * SPEC-CASE-09 D1/D4 (R190–R193): the edges out of the case's status that {@code CaseCommands#transition} would
+     * accept from this caller now ({@code case:transition} plus the edge's own permission; the case is already in the
+     * caller's read scope), and whether {@code case:assign} is held. Advice for the UI: the actions still check (D2).
+     */
+    public AllowedActions allowedActions(CaseRecord record) {
+        var principal = CurrentPrincipal.require();
+        var now = clock.instant();
+        var transitions = !principal.hasPermission("case:transition", now) ? List.<ReferenceData.Edge>of()
+                : ref.transitionsFrom(record.caseType(), record.status()).stream()
+                        .filter(e -> e.requiredPermission() == null || principal.hasPermission(e.requiredPermission(), now))
+                        .toList();
+        return new AllowedActions(transitions, principal.hasPermission("case:assign", now));
+    }
+
     @RequiresPermission("case:read")
     public CaseRecord getByNumber(String caseNo) {
         return access.byNumber(CurrentPrincipal.require(), "case:read", caseNo).record();

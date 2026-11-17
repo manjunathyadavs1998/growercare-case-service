@@ -39,6 +39,12 @@ public interface ReferenceData {
 
     Optional<Transition> transition(String caseType, String fromStatus, String toStatus);
 
+    /** SPEC-CASE-09: an edge out of a status. */
+    record Edge(String toStatus, String requiredPermission, boolean toClosed) { }
+
+    /** SPEC-CASE-09 D1: every edge of the type out of {@code fromStatus}, ordered by target status. */
+    List<Edge> transitionsFrom(String caseType, String fromStatus);
+
     Optional<Partner> partner(long partnerOrgId);
 
     Set<String> countriesOfTerritories(Set<Long> territoryIds);

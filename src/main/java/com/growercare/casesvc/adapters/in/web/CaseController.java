@@ -108,8 +108,11 @@ class CaseController {
         return queries.activity(caseIdOrNotFound(caseId)).stream().map(ActivityView::of).toList();
     }
 
+    /** A single case (read, transition, assign): with what the caller may do next (SPEC-CASE-09). */
     private ResponseEntity<CaseView> withEtag(CaseRecord record) {
-        var view = view(record);
+        var now = clock.instant();
+        var view = CaseView.of(record, CurrentPrincipal.require().piiClearanceFor("case:read", now),
+                SlaRules.state(now, record.slaStartedAt(), record.slaDueAt(), record.closedAt()), queries.allowedActions(record));
         return ResponseEntity.status(HttpStatus.OK).eTag(etag(view.version())).body(view);
     }
 

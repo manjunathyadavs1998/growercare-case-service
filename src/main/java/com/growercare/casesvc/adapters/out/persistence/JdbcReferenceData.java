@@ -73,6 +73,13 @@ class JdbcReferenceData implements ReferenceData {
     }
 
     @Override
+    public java.util.List<Edge> transitionsFrom(String caseType, String fromStatus) {
+        return jdbc.sql(sql.get("case-ref.transitionsFrom")).param("caseType", caseType).param("fromStatus", fromStatus)
+                .query((rs, n) -> new Edge(rs.getString("to_status"), rs.getString("required_permission"), rs.getBoolean("to_closed")))
+                .list();
+    }
+
+    @Override
     public Optional<Transition> transition(String caseType, String fromStatus, String toStatus) {
         return jdbc.sql(sql.get("case-ref.transitionPermission"))
                 .param("caseType", caseType).param("fromStatus", fromStatus).param("toStatus", toStatus)
