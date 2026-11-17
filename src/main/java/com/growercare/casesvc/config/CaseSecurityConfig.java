@@ -24,7 +24,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 /** case-service: principals come from IAM over HTTP, cached in Redis. */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties({CaseSecurityConfig.IamClientProperties.class, CaseSecurityConfig.GrowerClientProperties.class})
+@EnableConfigurationProperties({CaseSecurityConfig.IamClientProperties.class, CaseSecurityConfig.GrowerClientProperties.class,
+        CaseSecurityConfig.CatalogClientProperties.class})
 public class CaseSecurityConfig {
 
     /** {@code gc.iam.*}: where IAM lives and how long we wait for it. */
@@ -53,6 +54,35 @@ public class CaseSecurityConfig {
         requestFactory.setReadTimeout(grower.readTimeout());
         var rest = RestClient.builder().baseUrl(grower.baseUrl()).requestFactory(requestFactory).build();
         return new com.growercare.casesvc.adapters.out.grower.GrowerDirectoryClient(rest, tokens);
+    }
+
+    /** SPEC-CASE-08: grower-service's internal farm view (same base URL and timeouts as the grower view). */
+    @Bean
+    com.growercare.casesvc.application.port.FarmDirectory farmDirectory(GrowerClientProperties grower, OAuth2AuthorizedClientManager tokens) {
+        return new com.growercare.casesvc.adapters.out.grower.FarmDirectoryClient(restClient(grower.baseUrl(), grower.connectTimeout(),
+                grower.readTimeout()), tokens);
+    }
+
+    /** {@code gc.catalog.*}: where catalog-registry-service lives (SPEC-CASE-08) and how long we wait for it. */
+    @ConfigurationProperties("gc.catalog")
+    public record CatalogClientProperties(String baseUrl, Duration connectTimeout, Duration readTimeout) {
+        public CatalogClientProperties {
+            connectTimeout = connectTimeout == null ? Duration.ofSeconds(1) : connectTimeout;
+            readTimeout = readTimeout == null ? Duration.ofSeconds(2) : readTimeout;
+        }
+    }
+
+    /** SPEC-CASE-08: catalog-registry-service's internal views, same client-credentials token. */
+    @Bean
+    com.growercare.casesvc.application.port.CatalogDirectory catalogDirectory(CatalogClientProperties catalog, OAuth2AuthorizedClientManager tokens) {
+        return new com.growercare.casesvc.adapters.out.catalog.CatalogDirectoryClient(restClient(catalog.baseUrl(), catalog.connectTimeout(),
+                catalog.readTimeout()), tokens);
+    }
+
+    private static RestClient restClient(String baseUrl, Duration connectTimeout, Duration readTimeout) {
+        var requestFactory = new JdkClientHttpRequestFactory(java.net.http.HttpClient.newBuilder().connectTimeout(connectTimeout).build());
+        requestFactory.setReadTimeout(readTimeout);
+        return RestClient.builder().baseUrl(baseUrl).requestFactory(requestFactory).build();
     }
 
     /** Client-credentials tokens outside any user request (no HttpServletRequest needed), cached until expiry. */
