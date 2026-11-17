@@ -65,7 +65,7 @@ class CaseLifecycleIT extends CaseApiTestBase {
                             with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.K1), "farmId", SeedGrowers.id(SeedGrowers.FARM_K1)),
                             Map.of("territoryId", "1005", "raisedChannel", "CARE_CALL", "raisedByUserId", "101")),
                     argumentSet("CASE-E23 territory manager in the field", TM_IN,
-                            with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G2), "farmId", "80002"),
+                            with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G2), "farmId", SeedGrowers.id(SeedGrowers.FARM_G2)),
                             Map.of("territoryId", "1003", "raisedChannel", "FIELD")),
                     argumentSet("CASE-E24 retailer at the shop", RETAILER_IN, complaint(),
                             Map.of("raisedChannel", "RETAILER", "raisedViaPartnerOrgId", "501")));
@@ -115,9 +115,9 @@ class CaseLifecycleIT extends CaseApiTestBase {
                     argumentSet("CASE-E30f growerId above Long.MAX_VALUE", GROWER_IN1, with(complaint(), "growerId", "9999999999999999999"), true, 400, "VALIDATION_FAILED", "growerId"),
                     argumentSet("CASE-E30f farmId above Long.MAX_VALUE", GROWER_IN1, with(complaint(), "farmId", "9999999999999999999"), true, 400, "VALIDATION_FAILED", "farmId"),
                     argumentSet("CASE-E31 product not registered in BR", GROWER_BR1,
-                            with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G4), "farmId", "80003", "productId", "9003", "batchNo", null), true, 422, "BUSINESS_RULE_VIOLATION", "case.product-not-registered"),
+                            with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G4), "farmId", SeedGrowers.id(SeedGrowers.FARM_G4), "productId", "9003", "batchNo", null), true, 422, "BUSINESS_RULE_VIOLATION", "case.product-not-registered"),
                     argumentSet("CASE-E32 batch of another product", GROWER_IN1, with(complaint(), "batchNo", "HYC2605-009"), true, 422, "BUSINESS_RULE_VIOLATION", "case.batch-unknown"),
-                    argumentSet("CASE-E33 farm of another grower", GROWER_IN1, with(complaint(), "farmId", "80002"), true, 422, "BUSINESS_RULE_VIOLATION", "case.farm-not-of-grower"));
+                    argumentSet("CASE-E33 farm of another grower", GROWER_IN1, with(complaint(), "farmId", SeedGrowers.id(SeedGrowers.FARM_G2)), true, 422, "BUSINESS_RULE_VIOLATION", "case.farm-not-of-grower"));
         }
 
         @ParameterizedTest
@@ -256,7 +256,7 @@ class CaseLifecycleIT extends CaseApiTestBase {
 
         @Test
         void caseE41GrowerListsOnlyOwnCases() throws Exception {
-            createCase(GROWER_IN2, with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G2), "farmId", "80002"));
+            createCase(GROWER_IN2, with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G2), "farmId", SeedGrowers.id(SeedGrowers.FARM_G2)));
             var json = as(GROWER_IN2, get("/cases").param("limit", "100")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
             List<String> growers = JsonPath.read(json, "$.items[*].growerId");
             assertThat(growers).isNotEmpty().containsOnly(SeedGrowers.id(SeedGrowers.G2));

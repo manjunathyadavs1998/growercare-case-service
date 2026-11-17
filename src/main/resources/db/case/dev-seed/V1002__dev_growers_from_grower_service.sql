@@ -1,7 +1,7 @@
 -- =====================================================================================================
 -- DEV/TEST ONLY · SPEC-CASE-06 D6 / R151: the grower replica uses grower-service's ids (its dev seed G1–G4,
 -- SPEC-GRW-01 §2). The 70001-style rows stay for cases already raised on them locally, but become INACTIVE without a
--- user, so user ids stay unique and no new case can be raised for them. Farms move to the new growers.
+-- user, so user ids stay unique and no new case can be raised for them. The new growers get new farms.
 -- HMACs are grower-service's (dev key); the phone itself is never stored (D8).
 -- =====================================================================================================
 
@@ -15,7 +15,10 @@ INSERT INTO ref.grower (grower_id, country_code, territory_id, user_id, display_
     (110165911145455619, 'IN', 1005, NULL, 'Lakshmi (assisted onboarding)', decode('6752a1f363c58ae8ada7f9809ed57a7d35a64e3241d07dfef7ea164939820d7b', 'hex'), '5432', NULL, 'PENDING_CONSENT', 0),
     (110165911142966276, 'BR', 2002, 3,    'Joao Silva',                    decode('585e5ab1ed1b18e93ee25888f65e56422a0454288732edf2257e0528a70f2bb6', 'hex'), '4455', NULL, 'ACTIVE',          0);
 
-UPDATE ref.farm SET grower_id = 110165911145454593 WHERE farm_id = 80001;
-UPDATE ref.farm SET grower_id = 110165911145445378 WHERE farm_id = 80002;
-UPDATE ref.farm SET grower_id = 110165911142966276 WHERE farm_id = 80003;
-UPDATE ref.farm SET grower_id = 110165911145455619 WHERE farm_id = 80004;
+-- New farms for the new growers: the old farms stay with the 70001-style rows, because cases raised on them reference
+-- (farm_id, grower_id) through a composite foreign key (found on a local stack with existing cases).
+INSERT INTO ref.farm (farm_id, grower_id, name, area_ha, latitude, longitude) VALUES
+    (80011, 110165911145454593, 'Patil grape block A', 2.50,   18.520430,  73.856743),
+    (80012, 110165911145445378, 'Rao onion field',     1.20,   19.997454,  73.789803),
+    (80013, 110165911142966276, 'Fazenda Silva soy',   120.00, -21.177600, -47.810300),
+    (80014, 110165911145455619, 'Lakshmi ragi plot',   0.80,   13.284500,  77.607800);

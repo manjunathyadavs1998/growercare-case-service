@@ -12,6 +12,9 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * Inbound adapter for {@code grower.grower.events} (SPEC-CASE-06). The inbox row and the replica upsert share one
  * transaction (PLAT-R56/R57); retries and this consumer's own DLQ are configured in {@code CaseEventsConfig}.
+ * <p>The fetch from grower-service runs inside that transaction on purpose: the inbox row and the upsert must commit
+ * together, and fetching before the inbox check would break "a duplicate delivery fetches once" (R132). The cost is a
+ * pooled connection held for one fetch (1 s connect + 2 s read at most) on a single consumer thread.
  */
 @Component
 public class GrowerEventsListener {

@@ -25,13 +25,14 @@ public class GrowerReplicaSync {
         directory.fetch(growerId).ifPresent(store::upsert);
     }
 
-    /** R140/R141: the replica row after fetching it from grower-service; empty when grower-service does not know it. */
-    public Optional<ReferenceData.Grower> readThrough(long growerId) {
-        var fetched = directory.fetch(growerId);
-        if (fetched.isEmpty()) {
-            return Optional.empty();
-        }
-        store.upsert(fetched.get());
-        return ref.grower(growerId);
+    /** R140/R141: grower-service's current state; empty when it does not know the id. Nothing is stored yet (D9). */
+    public Optional<GrowerDirectory.GrowerReplica> fetch(long growerId) {
+        return directory.fetch(growerId);
+    }
+
+    /** Stores an authorised fetch and returns the replica row (R140; D7/D10 failures propagate). */
+    public ReferenceData.Grower store(GrowerDirectory.GrowerReplica grower) {
+        store.upsert(grower);
+        return ref.grower(grower.growerId()).orElseThrow();
     }
 }

@@ -2,8 +2,11 @@ package com.growercare.casesvc.adapters.out.persistence;
 
 import com.growercare.casesvc.application.port.GrowerDirectory.GrowerReplica;
 import com.growercare.casesvc.application.port.GrowerReplicaStore;
+import com.growercare.common.error.ConflictException;
 import com.growercare.common.error.DependencyUnavailableException;
+import com.growercare.common.error.ErrorCode;
 import com.growercare.common.sql.NamedSqlRegistry;
+import java.sql.SQLException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -18,6 +21,11 @@ class JdbcGrowerReplicaStore implements GrowerReplicaStore {
     JdbcGrowerReplicaStore(JdbcClient jdbc, NamedSqlRegistry sql) {
         this.jdbc = jdbc;
         this.sql = sql;
+    }
+
+    /** SQLState 23503 = foreign_key_violation. */
+    static boolean isForeignKeyViolation(DataIntegrityViolationException e) {
+        return e.getMostSpecificCause() instanceof SQLException sql && "23503".equals(sql.getSQLState());
     }
 
     @Override
@@ -36,8 +44,12 @@ class JdbcGrowerReplicaStore implements GrowerReplicaStore {
                     .param("version", g.version())
                     .update();
         } catch (DataIntegrityViolationException e) {
-            // D7: territory or partner not (yet) in case-service's reference data — transient until the master arrives
-            throw new DependencyUnavailableException("reference data for grower " + g.growerId(), e);
+            if (isForeignKeyViolation(e)) {
+                // D7: territory or partner not (yet) in case-service's reference data — transient until the master arrives
+                throw new DependencyUnavailableException("reference data for grower " + g.growerId(), e);
+            }
+            // D10: any other conflict (e.g. the user already linked to another replica grower) will not heal by waiting
+            throw new ConflictException(ErrorCode.DUPLICATE, "Grower " + g.growerId() + " conflicts with the replica", e);
         }
     }
 }
