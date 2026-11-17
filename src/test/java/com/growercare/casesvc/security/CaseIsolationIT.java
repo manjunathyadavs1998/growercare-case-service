@@ -1,5 +1,6 @@
 package com.growercare.casesvc.security;
 
+import com.growercare.casesvc.support.SeedGrowers;
 import static com.growercare.casesvc.support.DevSeedPrincipals.AGRO_IN;
 import static com.growercare.casesvc.support.DevSeedPrincipals.CARE_BR;
 import static com.growercare.casesvc.support.DevSeedPrincipals.CARE_IN;
@@ -46,11 +47,11 @@ class CaseIsolationIT {
                    Long viaPartner, Long assignee, Long sharedWith) { }
 
     static final List<Fixture> FIXTURES = List.of(
-            new Fixture("A: Pune CP via retailer 501, assigned agronomist", 70001, 1L, "IN", 1002, "CP", 501L, 102L, null),
-            new Fixture("B: Nashik SEEDS", 70002, 2L, "IN", 1003, "SEEDS", null, null, null),
-            new Fixture("C: Karnataka CP, assisted grower", 70004, null, "IN", 1005, "CP", null, null, null),
-            new Fixture("D: Brazil CP", 70003, 3L, "BR", 2002, "CP", null, null, null),
-            new Fixture("E: Pune SEEDS shared with retailer 502", 70001, 1L, "IN", 1002, "SEEDS", null, null, 502L));
+            new Fixture("A: Pune CP via retailer 501, assigned agronomist", SeedGrowers.G1, 1L, "IN", 1002, "CP", 501L, 102L, null),
+            new Fixture("B: Nashik SEEDS", SeedGrowers.G2, 2L, "IN", 1003, "SEEDS", null, null, null),
+            new Fixture("C: Karnataka CP, assisted grower", SeedGrowers.G3, null, "IN", 1005, "CP", null, null, null),
+            new Fixture("D: Brazil CP", SeedGrowers.G4, 3L, "BR", 2002, "CP", null, null, null),
+            new Fixture("E: Pune SEEDS shared with retailer 502", SeedGrowers.G1, 1L, "IN", 1002, "SEEDS", null, null, 502L));
 
     static final Clock CLOCK = Clock.systemUTC();
     static final ScopeFilter FILTER = new ScopeFilter(CLOCK);

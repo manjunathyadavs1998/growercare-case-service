@@ -55,9 +55,11 @@ public class CaseCommands {
     private final TransactionTemplate tx;
     private final Clock clock;
     private final SlaTimerRepository timers;
+    private final GrowerReplicaSync replicas;
 
     public CaseCommands(ReferenceData ref, CaseRepository cases, CaseAccess access, AssigneeDirectory assignees, ShardRouter router,
-                        PolicyEnforcer policy, OutboxWriter outbox, TransactionTemplate tx, Clock clock, SlaTimerRepository timers) {
+                        PolicyEnforcer policy, OutboxWriter outbox, TransactionTemplate tx, Clock clock, SlaTimerRepository timers,
+                        GrowerReplicaSync replicas) {
         this.ref = ref;
         this.cases = cases;
         this.access = access;
@@ -68,6 +70,7 @@ public class CaseCommands {
         this.tx = tx;
         this.clock = clock;
         this.timers = timers;
+        this.replicas = replicas;
     }
 
     // ============================================================================================ create
@@ -89,11 +92,18 @@ public class CaseCommands {
             throw new BusinessRuleException("case.type-inactive", "Case type " + type.code() + " is not active");
         }
 
-        // R23 — the grower must be one the caller may raise cases for (404 otherwise, no existence leak)
-        var grower = ref.grower(cmd.growerId()).orElseThrow(() -> new NotFoundException("Grower"));
+        // R23 — the grower must be one the caller may raise cases for (404 otherwise, no existence leak).
+        // SPEC-CASE-06 R140–R142: a grower the replica does not know yet is read through from grower-service.
+        var grower = ref.grower(cmd.growerId())
+                .or(() -> replicas.readThrough(cmd.growerId()))
+                .orElseThrow(() -> new NotFoundException("Grower"));
         var bu = cmd.productId() == null ? cmd.buCode() : ref.productBu(cmd.productId()).orElse(cmd.buCode());
         if (!policy.permits(principal, "case:create", creationScope(principal, grower, bu))) {
             throw new NotFoundException("Grower");
+        }
+        // SPEC-CASE-06 R143 / D4 — only ACTIVE growers get cases (assisted growers confirm by OTP first)
+        if (!grower.active()) {
+            throw new BusinessRuleException("case.grower-not-active", "The grower is not active (status " + grower.status() + ")");
         }
 
         // R25 — business validation against reference data

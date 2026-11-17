@@ -16,13 +16,18 @@ import org.springframework.util.backoff.ExponentialBackOff;
 
 /**
  * SPEC-PLAT-04 D5/D7: inbox + consumer error handling. Transient failures are retried 3 times with exponential
- * backoff (1 s, 2 s, 4 s by default), then the record goes to {@code dlq.case-service.iam-grant-cache} with Spring's
- * standard {@code kafka_dlt-*} headers. Malformed records skip the retries (R60).
+ * backoff (1 s, 2 s, 4 s by default), then the record goes to its consumer's DLQ topic — chosen by the source topic, so
+ * every consumer keeps its own (SPEC-CASE-06 R137) — with Spring's standard {@code kafka_dlt-*} headers. Malformed
+ * records skip the retries (R60).
  */
 @Configuration(proxyBeanMethods = false)
 public class CaseEventsConfig {
 
     public static final String DLQ_TOPIC = "dlq.case-service.iam-grant-cache";
+    public static final String GROWER_DLQ_TOPIC = "dlq.case-service.grower-replica";
+    static final java.util.Map<String, String> DLQ_BY_SOURCE = java.util.Map.of(
+            "iam.grant.events", DLQ_TOPIC,
+            "grower.grower.events", GROWER_DLQ_TOPIC);
     static final int RETRIES = 3;
 
     @Bean
@@ -35,7 +40,7 @@ public class CaseEventsConfig {
     CommonErrorHandler kafkaErrorHandler(KafkaTemplate<Object, Object> template,
                                          @Value("${gc.events.retry-initial-backoff:1s}") Duration initialBackoff) {
         var recoverer = new DeadLetterPublishingRecoverer(template,
-                (record, exception) -> new TopicPartition(DLQ_TOPIC, -1));   // -1: partition by the original key
+                (record, exception) -> new TopicPartition(DLQ_BY_SOURCE.getOrDefault(record.topic(), DLQ_TOPIC), -1));   // -1: by key
         var backOff = new ExponentialBackOff(initialBackoff.toMillis(), 2.0);
         backOff.setMaxAttempts(RETRIES);
         var handler = new DefaultErrorHandler(recoverer, backOff);

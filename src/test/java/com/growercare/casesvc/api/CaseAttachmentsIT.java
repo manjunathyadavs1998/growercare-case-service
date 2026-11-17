@@ -1,5 +1,6 @@
 package com.growercare.casesvc.api;
 
+import com.growercare.casesvc.support.SeedGrowers;
 import static com.growercare.casesvc.support.DevSeedPrincipals.AUDITOR_TEST;
 import static com.growercare.casesvc.support.DevSeedPrincipals.CARE_BR;
 import static com.growercare.casesvc.support.DevSeedPrincipals.CARE_IN;
@@ -167,7 +168,7 @@ class CaseAttachmentsIT extends CaseApiTestBase {
             Instant expires = Instant.parse(JsonPath.read(json, "$.upload.expiresAt"));
             assertThat(expires).isBetween(Instant.now().plusSeconds(240), Instant.now().plusSeconds(310));
             String url = JsonPath.read(json, "$.upload.url");
-            assertThat(url).doesNotContain("70001").doesNotContain("Patil");                     // ids only (PRV-5)
+            assertThat(url).doesNotContain(SeedGrowers.id(SeedGrowers.G1)).doesNotContain("Patil");                     // ids only (PRV-5)
         }
 
         /** kind, content type, size, sha, field. */
