@@ -4,6 +4,7 @@ import com.growercare.casesvc.application.port.AssigneeDirectory;
 import com.growercare.casesvc.application.port.CaseRepository;
 import com.growercare.casesvc.application.port.CaseRepository.NewCaseRow;
 import com.growercare.casesvc.application.port.ReferenceData;
+import com.growercare.casesvc.application.port.ReferenceReplicaStore;
 import com.growercare.casesvc.application.port.SlaTimerRepository;
 import com.growercare.casesvc.domain.RoutingRules;
 import com.growercare.casesvc.domain.SlaRules;
@@ -59,12 +60,12 @@ public class CaseCommands {
     private final SlaTimerRepository timers;
     private final GrowerReplicaSync replicas;
     private final ReferenceReplicaSync references;
-    private final com.growercare.casesvc.application.port.ReferenceReplicaStore referenceRows;
+    private final ReferenceReplicaStore referenceRows;
 
     public CaseCommands(ReferenceData ref, CaseRepository cases, CaseAccess access, AssigneeDirectory assignees, ShardRouter router,
                         PolicyEnforcer policy, OutboxWriter outbox, TransactionTemplate tx, Clock clock, SlaTimerRepository timers,
                         GrowerReplicaSync replicas, ReferenceReplicaSync references,
-                        com.growercare.casesvc.application.port.ReferenceReplicaStore referenceRows) {
+                        ReferenceReplicaStore referenceRows) {
         this.ref = ref;
         this.cases = cases;
         this.access = access;
@@ -104,8 +105,9 @@ public class CaseCommands {
         // after the caller is authorised for it (D9), so out of scope is always 404 with no outbound call or write.
         // SPEC-CASE-08 D8: a product not replicated yet has no known BU before its read-through, which may only happen
         // after the grower check; until then the grower must be in scope for at least one BU the caller creates in.
-        boolean buKnown = cmd.productId() == null || ref.productBu(cmd.productId()).isPresent();
-        var provisionalBu = cmd.productId() == null ? cmd.buCode() : ref.productBu(cmd.productId()).orElse(cmd.buCode());
+        var replicatedBu = cmd.productId() == null ? java.util.Optional.<String>empty() : ref.productBu(cmd.productId());
+        boolean buKnown = cmd.productId() == null || replicatedBu.isPresent();
+        var provisionalBu = replicatedBu.orElse(cmd.buCode());
         var grower = ref.grower(cmd.growerId()).orElseGet(() -> readThrough(principal, cmd.growerId(), provisionalBu, buKnown, now));
         if (!mayCreate(principal, grower, provisionalBu, buKnown, now)) {
             throw new NotFoundException("Grower");

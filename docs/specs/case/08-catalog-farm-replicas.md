@@ -41,7 +41,7 @@
 ### Migration and seed
 | Rule | Given | When | Then |
 |---|---|---|---|
-| CASE-R180 | `ref.farm`, `ref.product`, `ref.product_registration`, `ref.product_batch` | expand migration | gain `version integer NOT NULL DEFAULT 0`; `ref.farm` gains `status` (ACTIVE/ARCHIVED, default ACTIVE); the runtime role may INSERT/UPDATE these four tables (still read-only on the other `ref` tables) |
+| CASE-R180 | `ref.farm`, `ref.product`, `ref.product_registration`, `ref.product_batch` | expand migration | gain `version NOT NULL DEFAULT -1` (`integer` on `ref.farm`, `bigint` on the catalog tables; -1 marks pre-existing rows, R182); `ref.farm` gains `status` (ACTIVE/ARCHIVED, default ACTIVE); the runtime role may INSERT/UPDATE these four tables (still read-only on the other `ref` tables) |
 | CASE-R181 | dev seed | migration | no new seed rows; existing 9001–9003 / 80011–80014 rows unchanged (D6) |
 | CASE-R182 | a replica row that existed before the expand migration (seed copy, D6) | the owner's first event or read-through, at any owner version (0 included) | the owner's state replaces it: pre-existing rows carry version -1 |
 

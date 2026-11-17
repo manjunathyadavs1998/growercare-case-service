@@ -1,5 +1,11 @@
 package com.growercare.casesvc.config;
 
+import com.growercare.casesvc.adapters.out.catalog.CatalogDirectoryClient;
+import com.growercare.casesvc.adapters.out.grower.FarmDirectoryClient;
+import com.growercare.casesvc.adapters.out.grower.GrowerDirectoryClient;
+import com.growercare.casesvc.application.port.CatalogDirectory;
+import com.growercare.casesvc.application.port.FarmDirectory;
+import com.growercare.casesvc.application.port.GrowerDirectory;
 import com.growercare.casesvc.adapters.out.iam.IamPrincipalClient;
 import com.growercare.casesvc.application.port.AssigneeDirectory;
 import com.growercare.outbox.OutboxWriter;
@@ -48,18 +54,18 @@ public class CaseSecurityConfig {
 
     /** SPEC-CASE-06: grower-service's internal replica view, same client-credentials token as for IAM. */
     @Bean
-    com.growercare.casesvc.application.port.GrowerDirectory growerDirectory(GrowerClientProperties grower, OAuth2AuthorizedClientManager tokens) {
+    GrowerDirectory growerDirectory(GrowerClientProperties grower, OAuth2AuthorizedClientManager tokens) {
         var httpClient = java.net.http.HttpClient.newBuilder().connectTimeout(grower.connectTimeout()).build();
         var requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(grower.readTimeout());
         var rest = RestClient.builder().baseUrl(grower.baseUrl()).requestFactory(requestFactory).build();
-        return new com.growercare.casesvc.adapters.out.grower.GrowerDirectoryClient(rest, tokens);
+        return new GrowerDirectoryClient(rest, tokens);
     }
 
     /** SPEC-CASE-08: grower-service's internal farm view (same base URL and timeouts as the grower view). */
     @Bean
-    com.growercare.casesvc.application.port.FarmDirectory farmDirectory(GrowerClientProperties grower, OAuth2AuthorizedClientManager tokens) {
-        return new com.growercare.casesvc.adapters.out.grower.FarmDirectoryClient(restClient(grower.baseUrl(), grower.connectTimeout(),
+    FarmDirectory farmDirectory(GrowerClientProperties grower, OAuth2AuthorizedClientManager tokens) {
+        return new FarmDirectoryClient(restClient(grower.baseUrl(), grower.connectTimeout(),
                 grower.readTimeout()), tokens);
     }
 
@@ -74,8 +80,8 @@ public class CaseSecurityConfig {
 
     /** SPEC-CASE-08: catalog-registry-service's internal views, same client-credentials token. */
     @Bean
-    com.growercare.casesvc.application.port.CatalogDirectory catalogDirectory(CatalogClientProperties catalog, OAuth2AuthorizedClientManager tokens) {
-        return new com.growercare.casesvc.adapters.out.catalog.CatalogDirectoryClient(restClient(catalog.baseUrl(), catalog.connectTimeout(),
+    CatalogDirectory catalogDirectory(CatalogClientProperties catalog, OAuth2AuthorizedClientManager tokens) {
+        return new CatalogDirectoryClient(restClient(catalog.baseUrl(), catalog.connectTimeout(),
                 catalog.readTimeout()), tokens);
     }
 
