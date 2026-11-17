@@ -4,6 +4,7 @@ import com.growercare.casesvc.application.port.AssigneeDirectory;
 import com.growercare.casesvc.application.port.CaseRepository;
 import com.growercare.casesvc.application.port.CaseRepository.NewCaseRow;
 import com.growercare.casesvc.application.port.ReferenceData;
+import com.growercare.casesvc.application.port.ReferenceReplicaStore;
 import com.growercare.casesvc.application.port.SlaTimerRepository;
 import com.growercare.casesvc.domain.RoutingRules;
 import com.growercare.casesvc.domain.SlaRules;
@@ -58,10 +59,13 @@ public class CaseCommands {
     private final Clock clock;
     private final SlaTimerRepository timers;
     private final GrowerReplicaSync replicas;
+    private final ReferenceReplicaSync references;
+    private final ReferenceReplicaStore referenceRows;
 
     public CaseCommands(ReferenceData ref, CaseRepository cases, CaseAccess access, AssigneeDirectory assignees, ShardRouter router,
                         PolicyEnforcer policy, OutboxWriter outbox, TransactionTemplate tx, Clock clock, SlaTimerRepository timers,
-                        GrowerReplicaSync replicas) {
+                        GrowerReplicaSync replicas, ReferenceReplicaSync references,
+                        ReferenceReplicaStore referenceRows) {
         this.ref = ref;
         this.cases = cases;
         this.access = access;
@@ -73,6 +77,8 @@ public class CaseCommands {
         this.clock = clock;
         this.timers = timers;
         this.replicas = replicas;
+        this.references = references;
+        this.referenceRows = referenceRows;
     }
 
     // ============================================================================================ create
@@ -97,9 +103,13 @@ public class CaseCommands {
         // R23 — the grower must be one the caller may raise cases for (404 otherwise, no existence leak).
         // SPEC-CASE-06 R140–R147: a grower the replica does not know yet is read through from grower-service, but only
         // after the caller is authorised for it (D9), so out of scope is always 404 with no outbound call or write.
-        var bu = cmd.productId() == null ? cmd.buCode() : ref.productBu(cmd.productId()).orElse(cmd.buCode());
-        var grower = ref.grower(cmd.growerId()).orElseGet(() -> readThrough(principal, cmd.growerId(), bu, now));
-        if (!policy.permits(principal, "case:create", creationScope(principal, grower, bu))) {
+        // SPEC-CASE-08 D8: a product not replicated yet has no known BU before its read-through, which may only happen
+        // after the grower check; until then the grower must be in scope for at least one BU the caller creates in.
+        var replicatedBu = cmd.productId() == null ? java.util.Optional.<String>empty() : ref.productBu(cmd.productId());
+        boolean buKnown = cmd.productId() == null || replicatedBu.isPresent();
+        var provisionalBu = replicatedBu.orElse(cmd.buCode());
+        var grower = ref.grower(cmd.growerId()).orElseGet(() -> readThrough(principal, cmd.growerId(), provisionalBu, buKnown, now));
+        if (!mayCreate(principal, grower, provisionalBu, buKnown, now)) {
             throw new NotFoundException("Grower");
         }
         // SPEC-CASE-06 R143 / D4 — only ACTIVE growers get cases (assisted growers confirm by OTP first)
@@ -107,15 +117,29 @@ public class CaseCommands {
             throw new BusinessRuleException("case.grower-not-active", "The grower is not active (status " + grower.status() + ")");
         }
 
+        // SPEC-CASE-08 R172 — read the product through, then authorise with its real BU
+        var bu = provisionalBu;
+        if (!buKnown) {
+            references.refreshProduct(cmd.productId());                    // 503 when the catalog cannot answer (R174)
+            var productBu = ref.productBu(cmd.productId());
+            if (productBu.isPresent()) {
+                bu = productBu.get();
+                if (!policy.permits(principal, "case:create", creationScope(principal, grower, bu))) {
+                    throw new NotFoundException("Grower");
+                }
+            }
+        }
+
         // R25 — business validation against reference data
         if (cmd.productId() != null && !ref.productRegistered(grower.countryCode(), cmd.productId())) {
             throw new BusinessRuleException("case.product-not-registered", "The product is not registered in " + grower.countryCode());
         }
-        if (cmd.batchNo() != null && !ref.batchOfProduct(cmd.productId(), cmd.batchNo())) {
+        if (cmd.batchNo() != null && !ref.batchOfProduct(cmd.productId(), cmd.batchNo())
+                && !references.readThroughBatch(cmd.productId(), cmd.batchNo())) {                       // SPEC-CASE-08 R173
             throw new BusinessRuleException("case.batch-unknown", "The batch does not belong to the product");
         }
-        if (cmd.farmId() != null && !ref.farmOfGrower(cmd.farmId(), cmd.growerId())) {
-            throw new BusinessRuleException("case.farm-not-of-grower", "The farm does not belong to the grower");
+        if (cmd.farmId() != null) {
+            requireUsableFarm(cmd.farmId(), grower.growerId());                                           // SPEC-CASE-08 R170/R171
         }
 
         var shard = router.forGrower(grower.countryCode(), grower.growerId());
@@ -172,7 +196,7 @@ public class CaseCommands {
      * cases in, and store it only when the fetched grower is inside the caller's creation scope. Every other outcome is
      * the same 404 as an unknown grower.
      */
-    private ReferenceData.Grower readThrough(GcPrincipal principal, long growerId, String bu, Instant now) {
+    private ReferenceData.Grower readThrough(GcPrincipal principal, long growerId, String bu, boolean buKnown, Instant now) {
         var country = router.countryOfId(growerId).map(Country::code)
                 .orElseThrow(() -> new NotFoundException("Grower"));
         boolean mayCreateThere = country.equals(principal.homeCountry())
@@ -183,10 +207,39 @@ public class CaseCommands {
         var fetched = replicas.fetch(growerId).orElseThrow(() -> new NotFoundException("Grower"));
         var candidate = new ReferenceData.Grower(fetched.growerId(), fetched.countryCode(), fetched.territoryId(), fetched.userId(),
                 fetched.status());
-        if (!policy.permits(principal, "case:create", creationScope(principal, candidate, bu))) {
+        if (!mayCreate(principal, candidate, bu, buKnown, now)) {
             throw new NotFoundException("Grower");
         }
         return replicas.store(fetched);
+    }
+
+    /**
+     * Case creation scope for this grower. With an unknown BU (a product not replicated yet, SPEC-CASE-08 D8) any BU the
+     * caller may create cases in counts; the real BU is checked again after the product's read-through.
+     */
+    private boolean mayCreate(GcPrincipal principal, ReferenceData.Grower grower, String bu, boolean buKnown, Instant now) {
+        if (policy.permits(principal, "case:create", creationScope(principal, grower, bu))) {
+            return true;
+        }
+        return !buKnown && principal.grantsWith("case:create", now).flatMap(g -> g.buCodes().stream()).distinct()
+                .anyMatch(candidate -> policy.permits(principal, "case:create", creationScope(principal, grower, candidate)));
+    }
+
+    /**
+     * SPEC-CASE-08 R170/R171 (D4): the farm must be an ACTIVE farm of the case's grower. A farm not replicated yet is read
+     * through from grower-service, which only answers for that grower's own farms.
+     */
+    private void requireUsableFarm(long farmId, long growerId) {
+        var farm = referenceRows.farm(farmId);
+        if (farm.isEmpty() && references.refreshFarm(growerId, farmId)) {
+            farm = referenceRows.farm(farmId);
+        }
+        if (farm.isEmpty() || farm.get().growerId() != growerId) {
+            throw new BusinessRuleException("case.farm-not-of-grower", "The farm does not belong to the grower");
+        }
+        if (!farm.get().active()) {
+            throw new BusinessRuleException("case.farm-not-active", "The farm is archived");
+        }
     }
 
     private CreateResult replay(ShardId shard, CaseRepository.IdempotencyRecord previous, byte[] hash) {

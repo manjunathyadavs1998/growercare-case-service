@@ -26,9 +26,14 @@ public class CaseEventsConfig {
 
     public static final String DLQ_TOPIC = "dlq.case-service.iam-grant-cache";
     public static final String GROWER_DLQ_TOPIC = "dlq.case-service.grower-replica";
+    public static final String FARM_DLQ_TOPIC = "dlq.case-service.farm-replica";          // SPEC-CASE-08 R165
+    public static final String CATALOG_DLQ_TOPIC = "dlq.case-service.catalog-replica";
     static final java.util.Map<String, String> DLQ_BY_SOURCE = java.util.Map.of(
             "iam.grant.events", DLQ_TOPIC,
-            "grower.grower.events", GROWER_DLQ_TOPIC);
+            "grower.grower.events", GROWER_DLQ_TOPIC,
+            "grower.farm.events", FARM_DLQ_TOPIC,
+            "catalog.product.events", CATALOG_DLQ_TOPIC,
+            "catalog.batch.events", CATALOG_DLQ_TOPIC);
     static final int RETRIES = 3;
 
     @Bean

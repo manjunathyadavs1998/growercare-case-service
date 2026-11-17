@@ -204,13 +204,21 @@ class CaseSchemaMigrationIT {
         }
 
         /** SPEC-CASE-06 R150 / E150: the grower replica is the one ref table the runtime role writes (upserts only). */
-        @org.junit.jupiter.params.ParameterizedTest(name = "CASE-E150 {0} allowed: {1}")
+        @org.junit.jupiter.params.ParameterizedTest(name = "CASE-E150/E180 {0} allowed: {1}")
         @org.junit.jupiter.params.provider.CsvSource(delimiter = '|', textBlock = """
                 INSERT INTO ref.grower (grower_id, country_code, territory_id, display_name, status, version) VALUES (9300001, 'IN', 1002, 'E150', 'ACTIVE', 0) ON CONFLICT DO NOTHING | true
                 UPDATE ref.grower SET version = version WHERE grower_id = 9300001                                                                                         | true
                 UPDATE ref.territory SET name = name WHERE territory_id = 1002                                                                                            | false
                 DELETE FROM ref.grower WHERE grower_id = 9300001                                                                                                         | false
+                UPDATE ref.farm SET version = version WHERE farm_id = 80011                                                                                               | true
+                UPDATE ref.product SET version = version WHERE product_id = 9001                                                                                          | true
+                UPDATE ref.product_registration SET version = version WHERE product_id = 9001                                                                             | true
+                UPDATE ref.product_batch SET version = version WHERE product_id = 9001                                                                                    | true
+                DELETE FROM ref.farm WHERE farm_id = 80011                                                                                                               | false
+                DELETE FROM ref.product_batch WHERE product_id = 9001                                                                                                    | false
+                UPDATE ref.business_unit SET name = name                                                                                                                 | false
                 """)
+        /* rows after the grower ones: SPEC-CASE-08 R180 / E180 (farm and catalog replicas writable, never deletable) */
         void appRoleWritesOnlyTheGrowerReplica(String sql, boolean allowed) {
             if (allowed) {
                 app.sql(sql).update();
@@ -239,7 +247,9 @@ class CaseSchemaMigrationIT {
                     .query((rs, n) -> new Object[] {rs.getString(1), rs.getObject(2, Long.class)}).single();
             assertThat(row[0]).isEqualTo(status);
             assertThat(row[1]).isEqualTo(userId);
-            var farms = owner.sql("SELECT farm_id FROM ref.farm WHERE grower_id = ?").param(growerId).query(Long.class).list();
+            // farms from 9,200,000 up are test-only read-through farms (StubReferenceOwners, SPEC-CASE-08 R170)
+            var farms = owner.sql("SELECT farm_id FROM ref.farm WHERE grower_id = ? AND farm_id < 9200000").param(growerId)
+                    .query(Long.class).list();
             assertThat(farms).isEqualTo(farmId == null ? java.util.List.of() : java.util.List.of(farmId));
         }
     }

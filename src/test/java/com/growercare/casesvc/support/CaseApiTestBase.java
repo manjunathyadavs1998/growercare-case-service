@@ -95,10 +95,31 @@ public abstract class CaseApiTestBase {
         StubGrowerDirectory stubGrowerDirectory() {
             return new StubGrowerDirectory();
         }
+
+        /** Stands in for grower-service's farm view and catalog-registry-service (SPEC-CASE-08). */
+        @Bean
+        StubReferenceOwners stubReferenceOwners() {
+            return new StubReferenceOwners();
+        }
+
+        @Bean
+        @Primary
+        com.growercare.casesvc.application.port.FarmDirectory stubFarmDirectory(StubReferenceOwners owners) {
+            return owners.farms;
+        }
+
+        @Bean
+        @Primary
+        com.growercare.casesvc.application.port.CatalogDirectory stubCatalogDirectory(StubReferenceOwners owners) {
+            return owners.catalog;
+        }
     }
 
     @Autowired
     protected StubGrowerDirectory growerDirectory;
+
+    @Autowired
+    protected StubReferenceOwners owners;
 
     protected static final JsonMapper JSON = JsonMapper.builder().build();
 

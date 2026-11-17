@@ -202,7 +202,7 @@ SLA state is **not stored** (it would drift). It is computed from `sla_started_a
 ## 7. Known limits and follow-ups
 | Item | Plan |
 |---|---|
-| Replicas other than `ref.grower` (geography, partners, farms, products) are seeded, not yet synced | Event consumers (inbox) once catalog, control-plane, IAM partner events and SPEC-GRW-02 (farms) exist. `ref.grower` is synced since SPEC-CASE-06 |
+| Replicas of geography and partners are seeded, not yet synced | Event consumers once control-plane and IAM partner events exist. `ref.grower` is synced since SPEC-CASE-06; `ref.farm`, `ref.product`, `ref.product_registration` and `ref.product_batch` since SPEC-CASE-08 (events + read-through, version-guarded; batches only on demand) |
 | `case_no` uniqueness is not DB-enforced | Monitoring query; wraparound alert at 60% (doc 04) |
 | Direct DML on individual partitions bypasses the parent's REVOKE DELETE | The app always addresses parents; a dedicated purge role arrives with the archiver (ADR-004) |
 | Seeding the shard map for a new country needs a common migration | Control-plane will own country activation |
