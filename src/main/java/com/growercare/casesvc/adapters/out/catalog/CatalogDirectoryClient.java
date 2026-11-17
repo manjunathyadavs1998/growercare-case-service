@@ -71,8 +71,13 @@ public final class CatalogDirectoryClient implements CatalogDirectory {
 
     static BatchReplica batch(JsonNode v) {
         try {
+            var mfg = date(v, "mfgDate");
+            var expiry = date(v, "expiryDate");
+            if (mfg == null || expiry == null) {
+                throw new IllegalStateException("batch view without mfgDate or expiryDate");   // incomplete: fail closed (D7)
+            }
             return new BatchReplica(Long.parseLong(v.get("productId").asString()), v.get("batchNo").asString(),
-                    date(v, "mfgDate"), date(v, "expiryDate"), v.get("plantCode").asString(), v.get("version").asLong());
+                    mfg, expiry, v.get("plantCode").asString(), v.get("version").asLong());
         } catch (RuntimeException e) {
             throw new DependencyUnavailableException("catalog-registry-service (unreadable batch view)", e);
         }
