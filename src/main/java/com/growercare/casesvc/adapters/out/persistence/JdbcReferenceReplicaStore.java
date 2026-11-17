@@ -53,7 +53,6 @@ class JdbcReferenceReplicaStore implements ReferenceReplicaStore {
                         .param("version", r.version())
                         .update();
             }
-            return 0;
         });
     }
 
@@ -84,9 +83,9 @@ class JdbcReferenceReplicaStore implements ReferenceReplicaStore {
     }
 
     /** Same error mapping as the grower replica (SPEC-CASE-06 D7/D10): missing master row = transient, else permanent. */
-    private static void write(String what, java.util.function.Supplier<Integer> statement) {
+    private static void write(String what, Runnable statement) {
         try {
-            statement.get();
+            statement.run();
         } catch (DataIntegrityViolationException e) {
             if (JdbcGrowerReplicaStore.isForeignKeyViolation(e)) {
                 throw new DependencyUnavailableException("reference data for " + what, e);
