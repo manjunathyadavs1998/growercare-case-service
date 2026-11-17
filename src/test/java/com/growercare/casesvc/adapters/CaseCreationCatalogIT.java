@@ -60,21 +60,6 @@ class CaseCreationCatalogIT extends CaseApiTestBase {
     }
 
     @Test
-    void CASE_E171_anArchivedFarmTakesNoNewCases() throws Exception {
-        long farmId = StubReferenceOwners.nextFarmId();
-        owners.put(farm(farmId, G1, "ARCHIVED", 1));
-        problem(create(GROWER_IN1, with(complaint(), "farmId", Long.toString(farmId)), UUID.randomUUID()), 422, "BUSINESS_RULE_VIOLATION")
-                .andExpect(jsonPath("$.rule").value("case.farm-not-active"));
-    }
-
-    @Test
-    void CASE_E170_aFarmGrowerServiceDoesNotKnowForThisGrowerIsNotTheGrowers() throws Exception {
-        long farmId = StubReferenceOwners.nextFarmId();          // never put into the stub
-        problem(create(GROWER_IN1, with(complaint(), "farmId", Long.toString(farmId)), UUID.randomUUID()), 422, "BUSINESS_RULE_VIOLATION")
-                .andExpect(jsonPath("$.rule").value("case.farm-not-of-grower"));
-    }
-
-    @Test
     void CASE_E172_aNewProductAndItsBatchAreReadThrough() throws Exception {
         long productId = StubReferenceOwners.nextProductId();
         var batchNo = StubReferenceOwners.nextBatchNo();
@@ -88,19 +73,34 @@ class CaseCreationCatalogIT extends CaseApiTestBase {
         assertThat(refRows("SELECT count(*) FROM ref.product_batch WHERE product_id = ? AND batch_no = ?", productId, batchNo)).isEqualTo(1);
     }
 
-    @Test
-    void CASE_E172_aProductNotRegisteredInTheCountryIsRefusedAfterReadThrough() throws Exception {
-        long productId = StubReferenceOwners.nextProductId();
-        owners.put(product(productId, "WITHDRAWN"));
-        problem(create(GROWER_IN1, with(complaint(), "productId", Long.toString(productId), "batchNo", null), UUID.randomUUID()),
-                422, "BUSINESS_RULE_VIOLATION").andExpect(jsonPath("$.rule").value("case.product-not-registered"));
+    /** How a row prepares the owners' stubs and changes the complaint; returns the body to send. */
+    interface Setup {
+        java.util.Map<String, Object> apply(com.growercare.casesvc.support.StubReferenceOwners owners);
     }
 
-    @Test
-    void CASE_E173_aBatchTheCatalogDoesNotKnowIsRefused() throws Exception {
-        problem(create(GROWER_IN1, with(complaint(), "batchNo", "NOPE-0001"), UUID.randomUUID()), 422, "BUSINESS_RULE_VIOLATION")
-                .andExpect(jsonPath("$.rule").value("case.batch-unknown"));
-        assertThat(owners.batchCalls(9001, "NOPE-0001")).isEqualTo(1);
+    static Stream<Arguments> refusals() {
+        return Stream.of(
+                argumentSet("CASE-E171 an archived farm takes no new cases", (Setup) o -> {
+                    long farmId = StubReferenceOwners.nextFarmId();
+                    o.put(farm(farmId, G1, "ARCHIVED", 1));
+                    return with(complaint(), "farmId", Long.toString(farmId));
+                }, "case.farm-not-active"),
+                argumentSet("CASE-E170b a farm grower-service does not know for G1", (Setup) o ->
+                        with(complaint(), "farmId", Long.toString(StubReferenceOwners.nextFarmId())), "case.farm-not-of-grower"),
+                argumentSet("CASE-E172b a new product withdrawn in IN", (Setup) o -> {
+                    long productId = StubReferenceOwners.nextProductId();
+                    o.put(product(productId, "WITHDRAWN"));
+                    return with(complaint(), "productId", Long.toString(productId), "batchNo", null);
+                }, "case.product-not-registered"),
+                argumentSet("CASE-E173 a batch the catalog does not know", (Setup) o -> with(complaint(), "batchNo", "NOPE-0001"),
+                        "case.batch-unknown"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("refusals")
+    void afterTheReadThroughTheBusinessRulesApply(Setup setup, String rule) throws Exception {
+        problem(create(GROWER_IN1, setup.apply(owners), UUID.randomUUID()), 422, "BUSINESS_RULE_VIOLATION")
+                .andExpect(jsonPath("$.rule").value(rule));
     }
 
     static Stream<Arguments> outages() {

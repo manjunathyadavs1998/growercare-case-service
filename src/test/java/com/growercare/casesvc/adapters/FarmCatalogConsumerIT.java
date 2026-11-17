@@ -106,6 +106,17 @@ class FarmCatalogConsumerIT extends CaseApiTestBase {
     }
 
     @Test
+    void CASE_E166_theOwnersFirstAnswerReplacesASeedCopyEvenAtVersion0() throws Exception {
+        long g3 = SeedGrowers.G3;
+        owners.put(new FarmReplica(80014, g3, "Lakshmi ragi plot (from grower-service)", new BigDecimal("0.80"), null, null, "ACTIVE", 0));
+        var eventId = UUID.randomUUID();
+        send(FARMS, "80014", event(eventId, "grower.farm.updated", "{\"farmId\":\"80014\",\"growerId\":\"%d\",\"version\":0}".formatted(g3)));
+        awaitInbox(ReferenceEventsListener.FARM_GROUP, eventId);
+        assertThat(owner.sql("SELECT name || ':' || version FROM ref.farm WHERE farm_id = 80014").query(String.class).single())
+                .isEqualTo("Lakshmi ragi plot (from grower-service):0");
+    }
+
+    @Test
     void CASE_E162_aRegistrationChangeDecidesWhetherCasesAreAccepted() throws Exception {
         long productId = StubReferenceOwners.nextProductId();
         owners.put(product(productId, "REGISTERED", 1));

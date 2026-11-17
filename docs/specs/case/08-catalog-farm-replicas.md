@@ -43,6 +43,7 @@
 |---|---|---|---|
 | CASE-R180 | `ref.farm`, `ref.product`, `ref.product_registration`, `ref.product_batch` | expand migration | gain `version integer NOT NULL DEFAULT 0`; `ref.farm` gains `status` (ACTIVE/ARCHIVED, default ACTIVE); the runtime role may INSERT/UPDATE these four tables (still read-only on the other `ref` tables) |
 | CASE-R181 | dev seed | migration | no new seed rows; existing 9001–9003 / 80011–80014 rows unchanged (D6) |
+| CASE-R182 | a replica row that existed before the expand migration (seed copy, D6) | the owner's first event or read-through, at any owner version (0 included) | the owner's state replaces it: pre-existing rows carry version -1 |
 
 ## 2. Examples
 **Fixture:** case-service dev seed; stubs for grower-service farms and catalog-registry (record calls, can fail, return 404). Fresh ids from `nextGrowerIdInTestShards` / test-only farm and product ids.
@@ -61,6 +62,9 @@
 | CASE-E173 | R173 | grower.in1, product 9001, batch `NOPE-0001` (stub 404) | 422 `case.batch-unknown` |
 | CASE-E174 | R174 | catalog stub failing, new product · farm stub failing, new farm | 503 (both), nothing written |
 | CASE-E175 | R175 | grower.in2 names G1 with a new farm | 404, no stub call |
+| CASE-E166 | R182 | `grower.farm.updated` for seed farm 80014 (stub: version 0, renamed) | `ref.farm` 80014 renamed, version 0 |
+| CASE-E170b | R170 | grower.in1 names a new farm grower-service does not know for G1 | 422 `case.farm-not-of-grower` |
+| CASE-E172b | R172/R25 | grower.in1 names a new product withdrawn in IN (stub) | 422 `case.product-not-registered` after the read-through |
 | CASE-E180 | R180 | app role | UPDATE `ref.farm` (allowed) · UPDATE `ref.territory` | ok · permission denied |
 | CASE-E181 | **smoke** (PRD J4) | grower.in1 raises a complaint with a product found via catalog search, a valid batch, the farm added in GRW-E222 | 201; an unknown batch → 422 `case.batch-unknown` |
 
@@ -68,7 +72,7 @@
 No new endpoint. `POST /cases` gains 422 `case.farm-not-active` (R171); 503 on read-through failure exists since CASE-06. OpenAPI regenerated.
 
 ## 4. Data & events
-- Common migration (expand): `version` on the four tables, `ref.farm.status`, grants (R180). Upserts `INSERT … ON CONFLICT … DO UPDATE … WHERE version < EXCLUDED.version`.
+- Common migration (expand): `version` on the four tables (pre-existing rows -1, R182), `ref.farm.status`, grants (R180). Upserts `INSERT … ON CONFLICT … DO UPDATE … WHERE version < EXCLUDED.version`.
 - Consumers: `grower.farm.events`, `catalog.product.events`, `catalog.batch.events` with inbox dedup and per-topic DLQ (`CaseEventsConfig.DLQ_BY_SOURCE`).
 - New variable `CATALOG_BASE_URL`; farms use the existing `GROWER_BASE_URL`.
 
@@ -82,7 +86,7 @@ No new endpoint. `POST /cases` gains 422 `case.farm-not-active` (R171); 503 on r
 ## 6. Traceability
 | Rule / Example | Test |
 |---|---|
-| R160–R165 / E160–E165 | `FarmCatalogConsumerIT` (real Kafka; owners stubbed by `StubReferenceOwners`) |
-| R170–R175 / E170–E175 | `CaseCreationCatalogIT` |
+| R160–R165, R182 / E160–E166 | `FarmCatalogConsumerIT` (real Kafka; owners stubbed by `StubReferenceOwners`) |
+| R170–R175 / E170–E175, E170b, E172b | `CaseCreationCatalogIT` |
 | R180 / E180 | `CaseSchemaMigrationIT` (`appRoleWritesOnlyTheGrowerReplica` rows) |
 | E181 | growercare-local-platform `smoke.sh` |
