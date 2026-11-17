@@ -85,9 +85,12 @@ class CaseController {
                   @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
                   @RequestParam(required = false) String cursor,
                   @RequestParam(required = false) @Pattern(regexp = "^[A-Z]{2}-[A-Z0-9-]{2,40}$") String queue,
-                  @RequestParam(required = false) SlaRules.SlaState slaState) {
+                  @RequestParam(required = false) SlaRules.SlaState slaState,
+                  @RequestParam(required = false) @Pattern(regexp = CaseDtos.ID) String growerId,
+                  @RequestParam(required = false) @Pattern(regexp = CaseDtos.ID) String productId,
+                  @RequestParam(required = false) @Pattern(regexp = "^[A-Z0-9-]{4,32}$") String batchNo) {
         var page = queries.list(new CaseQueries.ListQuery(status, caseType, optionalId(territoryId, "territoryId"), assignedToMe, createdFrom,
-                limit, cursor, queue, slaState));
+                limit, cursor, queue, slaState, optionalId(growerId, "growerId"), optionalId(productId, "productId"), batchNo));
         return new CasePage(page.items().stream().map(this::view).toList(), page.nextCursor());
     }
 
@@ -101,6 +104,12 @@ class CaseController {
     ResponseEntity<CaseView> assign(@PathVariable String caseId, @RequestHeader("If-Match") String ifMatch,
                                     @Valid @RequestBody AssignRequest body) {
         return withEtag(commands.assign(caseIdOrNotFound(caseId), version(ifMatch), CaseDtos.id(body.assigneeUserId(), "assigneeUserId")));
+    }
+
+    /** SPEC-CASE-07 R210–R212: the territory overview (J9). */
+    @GetMapping("/cases/overview")
+    CaseDtos.OverviewView overview(@RequestParam(required = false) @Pattern(regexp = CaseDtos.ID) String territoryId) {
+        return CaseDtos.OverviewView.of(queries.overview(optionalId(territoryId, "territoryId")));
     }
 
     @GetMapping("/cases/{caseId}/activity")

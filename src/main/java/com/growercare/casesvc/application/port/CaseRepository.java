@@ -24,7 +24,14 @@ public interface CaseRepository {
     /** One shard's keyset page; the principal's scope for {@code permission} is ANDed in, so out-of-scope rows are never read. */
     List<CaseRecord> list(ShardId shard, GcPrincipal principal, String permission, ListFilter filter, long beforeId, long fromId, int limit);
 
-    record ListFilter(String status, String caseType, Long territoryId, Long assigneeUserId, String queueCode, String slaState) { }
+    /** SPEC-CASE-07 R210: open cases in the principal's {@code permission} scope on one shard, grouped. */
+    List<OverviewRow> overview(ShardId shard, GcPrincipal principal, String permission, Long territoryId);
+
+    record ListFilter(String status, String caseType, Long territoryId, Long assigneeUserId, String queueCode, String slaState,
+                      Long growerId, Long productId, String batchNo) { }
+
+    /** SPEC-CASE-07: one group of open cases for the overview. */
+    record OverviewRow(String status, String caseType, Long assigneeUserId, String slaState, long open) { }
 
     record NewCaseRow(String caseType, String status, long territoryId, String buCode, long growerId, Long farmId,
                       long raisedBy, String channel, Long partnerOrgId, Long productId, String batchNo, String title,

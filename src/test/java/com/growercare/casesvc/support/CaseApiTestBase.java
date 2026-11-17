@@ -62,6 +62,7 @@ public abstract class CaseApiTestBase {
         r.add("gc.attachments.secret-key", () -> S3TestContainer.SECRET_KEY);
         r.add("gc.attachments.sign-checksum", () -> "false");
         r.add("gc.attachments.create-buckets", () -> "true");
+        r.add("gc.case.overview-cache-ttl", () -> "PT0S");                             // SPEC-CASE-07 D5 (OverviewCacheTest covers 30 s)
     }
 
     @TestConfiguration
