@@ -93,11 +93,10 @@ public class CaseCommands {
         }
 
         // R23 — the grower must be one the caller may raise cases for (404 otherwise, no existence leak).
-        // SPEC-CASE-06 R140–R142: a grower the replica does not know yet is read through from grower-service.
-        var grower = ref.grower(cmd.growerId())
-                .or(() -> replicas.readThrough(cmd.growerId()))
-                .orElseThrow(() -> new NotFoundException("Grower"));
+        // SPEC-CASE-06 R140–R147: a grower the replica does not know yet is read through from grower-service, but only
+        // after the caller is authorised for it (D9), so out of scope is always 404 with no outbound call or write.
         var bu = cmd.productId() == null ? cmd.buCode() : ref.productBu(cmd.productId()).orElse(cmd.buCode());
+        var grower = ref.grower(cmd.growerId()).orElseGet(() -> readThrough(principal, cmd.growerId(), bu, now));
         if (!policy.permits(principal, "case:create", creationScope(principal, grower, bu))) {
             throw new NotFoundException("Grower");
         }
@@ -164,6 +163,28 @@ public class CaseCommands {
             // e.g. an unknown buCode (FK): a reference the client supplied does not exist
             throw new BusinessRuleException("case.reference-invalid", "A referenced code does not exist", e);
         }
+    }
+
+    /**
+     * SPEC-CASE-06 D9 (R146, R147): fetch an unknown grower only when its id decodes to a country the caller may create
+     * cases in, and store it only when the fetched grower is inside the caller's creation scope. Every other outcome is
+     * the same 404 as an unknown grower.
+     */
+    private ReferenceData.Grower readThrough(GcPrincipal principal, long growerId, String bu, java.time.Instant now) {
+        var country = router.countryOfId(growerId).map(com.growercare.shard.Country::code)
+                .orElseThrow(() -> new NotFoundException("Grower"));
+        boolean mayCreateThere = country.equals(principal.homeCountry())
+                || principal.grantsWith("case:create", now).anyMatch(g -> g.countries().contains(country));
+        if (!mayCreateThere) {
+            throw new NotFoundException("Grower");
+        }
+        var fetched = replicas.fetch(growerId).orElseThrow(() -> new NotFoundException("Grower"));
+        var candidate = new ReferenceData.Grower(fetched.growerId(), fetched.countryCode(), fetched.territoryId(), fetched.userId(),
+                fetched.status());
+        if (!policy.permits(principal, "case:create", creationScope(principal, candidate, bu))) {
+            throw new NotFoundException("Grower");
+        }
+        return replicas.store(fetched);
     }
 
     private CreateResult replay(ShardId shard, CaseRepository.IdempotencyRecord previous, byte[] hash) {
