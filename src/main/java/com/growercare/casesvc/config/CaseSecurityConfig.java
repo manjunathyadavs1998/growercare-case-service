@@ -24,7 +24,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /** case-service: principals come from IAM over HTTP, cached in Redis. */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(CaseSecurityConfig.IamClientProperties.class)
+@EnableConfigurationProperties({CaseSecurityConfig.IamClientProperties.class, CaseSecurityConfig.GrowerClientProperties.class})
 public class CaseSecurityConfig {
 
     /** {@code gc.iam.*}: where IAM lives and how long we wait for it. */
@@ -34,6 +34,25 @@ public class CaseSecurityConfig {
             connectTimeout = connectTimeout == null ? Duration.ofSeconds(1) : connectTimeout;
             readTimeout = readTimeout == null ? Duration.ofSeconds(2) : readTimeout;
         }
+    }
+
+    /** {@code gc.grower.*}: where grower-service lives (SPEC-CASE-06) and how long we wait for it. */
+    @ConfigurationProperties("gc.grower")
+    public record GrowerClientProperties(String baseUrl, Duration connectTimeout, Duration readTimeout) {
+        public GrowerClientProperties {
+            connectTimeout = connectTimeout == null ? Duration.ofSeconds(1) : connectTimeout;
+            readTimeout = readTimeout == null ? Duration.ofSeconds(2) : readTimeout;
+        }
+    }
+
+    /** SPEC-CASE-06: grower-service's internal replica view, same client-credentials token as for IAM. */
+    @Bean
+    com.growercare.casesvc.application.port.GrowerDirectory growerDirectory(GrowerClientProperties grower, OAuth2AuthorizedClientManager tokens) {
+        var httpClient = java.net.http.HttpClient.newBuilder().connectTimeout(grower.connectTimeout()).build();
+        var requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(grower.readTimeout());
+        var rest = RestClient.builder().baseUrl(grower.baseUrl()).requestFactory(requestFactory).build();
+        return new com.growercare.casesvc.adapters.out.grower.GrowerDirectoryClient(rest, tokens);
     }
 
     /** Client-credentials tokens outside any user request (no HttpServletRequest needed), cached until expiry. */

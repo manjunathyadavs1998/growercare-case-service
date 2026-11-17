@@ -144,16 +144,36 @@ final class CaseDtos {
         return Long.toString(value);
     }
 
-    static Long optionalId(String value) {
-        return value == null ? null : Long.parseLong(value);
+    /**
+     * R24: a body or query id. {@link #ID} also admits 19-digit values above {@code Long.MAX_VALUE}, so overflow is a
+     * 400 on the field, never a 500 (found in grower-service review, applied here).
+     */
+    static long id(String raw, String field) {
+        try {
+            return Long.parseLong(raw);
+        } catch (NumberFormatException e) {
+            throw ValidationException.of(field, "must be a positive 64-bit id");
+        }
     }
 
-    /** Path ids that are malformed are indistinguishable from unknown ones (SPEC-CASE-02 R29). */
-    static long caseIdOrNotFound(String raw) {
+    static Long optionalId(String raw, String field) {
+        return raw == null ? null : id(raw, field);
+    }
+
+    /** Path ids that are malformed (including 19-digit overflow) are indistinguishable from unknown ones (R29). */
+    static long pathIdOrNotFound(String raw, String resource) {
         if (raw == null || !raw.matches(ID)) {
-            throw new NotFoundException("Case");
+            throw new NotFoundException(resource);
         }
-        return Long.parseLong(raw);
+        try {
+            return Long.parseLong(raw);
+        } catch (NumberFormatException e) {
+            throw new NotFoundException(resource);
+        }
+    }
+
+    static long caseIdOrNotFound(String raw) {
+        return pathIdOrNotFound(raw, "Case");
     }
 
     /** {@code If-Match: "7"} (weak form accepted) → 7; anything else is a 400 on the header. */

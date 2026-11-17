@@ -54,6 +54,20 @@ public final class DevSeedPrincipals {
         return java.util.stream.Stream.concat(all().stream(), java.util.stream.Stream.of(AUDITOR_TEST)).toList();
     }
 
+    /** Test-only GROWER accounts (SPEC-CASE-06 E145): self-registered in grower-service, unknown to the seed. */
+    private static final String TEST_GROWER_PREFIX = "6f1c0a10-0900-4a00-8000-";
+
+    public static GcPrincipal testGrower(long userId) {
+        return grower(userId, UUID.fromString(TEST_GROWER_PREFIX + "%012d".formatted(userId)), "IN");
+    }
+
+    public static java.util.Optional<GcPrincipal> testGrowerFor(UUID subject) {
+        var text = subject.toString();
+        return text.startsWith(TEST_GROWER_PREFIX)
+                ? java.util.Optional.of(testGrower(Long.parseLong(text.substring(TEST_GROWER_PREFIX.length()))))
+                : java.util.Optional.empty();
+    }
+
     public static List<GcPrincipal> all() {
         return List.of(GROWER_IN1, GROWER_IN2, GROWER_BR1, CARE_IN, AGRO_IN, TM_IN, CARE_BR, RETAILER_IN, RETAILER2_IN);
     }

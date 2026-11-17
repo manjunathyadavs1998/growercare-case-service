@@ -55,8 +55,8 @@ class CaseController {
     @PostMapping("/cases")
     ResponseEntity<CaseView> create(@RequestHeader("Idempotency-Key") String idempotencyKey, @Valid @RequestBody CreateCaseRequest body) {
         var command = new NewCaseCommand(
-                Long.parseLong(body.growerId()), body.caseType(), body.title(), body.description(),
-                optionalId(body.farmId()), optionalId(body.productId()), body.batchNo(), body.buCode(), body.priority(),
+                CaseDtos.id(body.growerId(), "growerId"), body.caseType(), body.title(), body.description(),
+                optionalId(body.farmId(), "farmId"), optionalId(body.productId(), "productId"), body.batchNo(), body.buCode(), body.priority(),
                 CaseDtos.uuid(idempotencyKey, "Idempotency-Key"));
         var result = commands.create(command);
         var view = view(result.record());
@@ -86,7 +86,7 @@ class CaseController {
                   @RequestParam(required = false) String cursor,
                   @RequestParam(required = false) @Pattern(regexp = "^[A-Z]{2}-[A-Z0-9-]{2,40}$") String queue,
                   @RequestParam(required = false) SlaRules.SlaState slaState) {
-        var page = queries.list(new CaseQueries.ListQuery(status, caseType, optionalId(territoryId), assignedToMe, createdFrom,
+        var page = queries.list(new CaseQueries.ListQuery(status, caseType, optionalId(territoryId, "territoryId"), assignedToMe, createdFrom,
                 limit, cursor, queue, slaState));
         return new CasePage(page.items().stream().map(this::view).toList(), page.nextCursor());
     }
@@ -100,7 +100,7 @@ class CaseController {
     @PutMapping("/cases/{caseId}/assignee")
     ResponseEntity<CaseView> assign(@PathVariable String caseId, @RequestHeader("If-Match") String ifMatch,
                                     @Valid @RequestBody AssignRequest body) {
-        return withEtag(commands.assign(caseIdOrNotFound(caseId), version(ifMatch), Long.parseLong(body.assigneeUserId())));
+        return withEtag(commands.assign(caseIdOrNotFound(caseId), version(ifMatch), CaseDtos.id(body.assigneeUserId(), "assigneeUserId")));
     }
 
     @GetMapping("/cases/{caseId}/activity")

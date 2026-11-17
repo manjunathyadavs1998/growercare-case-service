@@ -31,4 +31,11 @@ public record MigrationProperties(
             parallelism = 4;
         }
     }
+
+    /** SPEC-PLAT-06 R82: never prints the owner password (a record's generated toString would). */
+    @Override
+    public String toString() {
+        return "MigrationProperties[enabled=%s, ownerUser=%s, ownerPassword=%s, appRole=%s, cdcRole=%s, devSeed=%s, parallelism=%d]"
+                .formatted(enabled, ownerUser, ownerPassword == null ? null : "****", appRole, cdcRole, devSeed, parallelism);
+    }
 }

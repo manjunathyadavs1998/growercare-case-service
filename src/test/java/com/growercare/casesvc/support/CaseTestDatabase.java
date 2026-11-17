@@ -32,8 +32,9 @@ public final class CaseTestDatabase {
             new Country("IN", 46, 71, "APAC", ZoneId.of("Asia/Kolkata")),
             new Country("BR", 8, 31, "LATAM", ZoneId.of("America/Sao_Paulo")))));
 
-    /** Dev-seed growers (db/case/dev-seed) by country. */
-    public static final Map<Long, String> SEED_GROWERS = Map.of(70001L, "IN", 70002L, "IN", 70004L, "IN", 70003L, "BR");
+    /** Growers that get cases in tests, by country: the dev seed (grower-service ids, SPEC-CASE-06 D6) and test-only K1. */
+    public static final Map<Long, String> SEED_GROWERS = Map.of(
+            SeedGrowers.G1, "IN", SeedGrowers.G2, "IN", SeedGrowers.G3, "IN", SeedGrowers.G4, "BR", SeedGrowers.K1, "IN");
 
     /** Shards referenced by literal schema name in schema tests. */
     public static final Set<ShardId> FIXED_SHARDS = Set.of(
@@ -57,11 +58,29 @@ public final class CaseTestDatabase {
             // Keep ref.shard consistent with the light database: list fan-out (SPEC-CASE-02 D1) reads the shard map,
             // so it must only name schemas that exist. Owner role; test-only.
             var keep = TEST_SHARDS.stream().map(ShardId::schemaName).toList();
-            org.springframework.jdbc.core.simple.JdbcClient.create(db.ownerDataSource())
-                    .sql("DELETE FROM ref.shard WHERE schema_name NOT IN (:keep)").param("keep", keep).update();
+            var owner = org.springframework.jdbc.core.simple.JdbcClient.create(db.ownerDataSource());
+            owner.sql("DELETE FROM ref.shard WHERE schema_name NOT IN (:keep)").param("keep", keep).update();
+            // K1: test-only ACTIVE grower in Karnataka (the dev seed's G3 there is PENDING_CONSENT, SPEC-CASE-06 D4)
+            owner.sql("""
+                    INSERT INTO ref.grower (grower_id, country_code, territory_id, user_id, display_name, status, version)
+                    VALUES (:id, 'IN', 1005, NULL, 'Kavya Gowda (test)', 'ACTIVE', 0)""").param("id", SeedGrowers.K1).update();
+            owner.sql("INSERT INTO ref.farm (farm_id, grower_id, name, area_ha) VALUES (:farm, :grower, 'Kavya ragi plot', 0.60)")
+                    .param("farm", SeedGrowers.FARM_K1).param("grower", SeedGrowers.K1).update();
             migrated = true;
         }
         return db;
+    }
+
+    private static final java.util.concurrent.atomic.AtomicLong NEXT_GROWER = new java.util.concurrent.atomic.AtomicLong(9_200_000L);
+
+    /** A fresh grower id (not in any seed) whose cases route to a shard of the light test database. */
+    public static long nextGrowerIdInTestShards(String country) {
+        while (true) {
+            long id = NEXT_GROWER.getAndIncrement();
+            if (TEST_SHARDS.contains(ROUTER.forGrower(country, id))) {
+                return id;
+            }
+        }
     }
 
     public static ShardedFlywayMigrator migrator(PostgresTestDatabase db) {

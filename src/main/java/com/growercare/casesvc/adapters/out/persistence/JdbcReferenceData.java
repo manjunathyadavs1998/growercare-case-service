@@ -29,7 +29,8 @@ class JdbcReferenceData implements ReferenceData {
     }
 
     private static final RowMapper<Grower> GROWER = (rs, n) -> new Grower(
-            rs.getLong("grower_id"), rs.getString("country_code"), rs.getLong("territory_id"), rs.getObject("user_id", Long.class));
+            rs.getLong("grower_id"), rs.getString("country_code"), rs.getLong("territory_id"), rs.getObject("user_id", Long.class),
+            rs.getString("status"));
 
     @Override
     public Optional<Grower> grower(long growerId) {
