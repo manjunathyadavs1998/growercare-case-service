@@ -1,5 +1,6 @@
 package com.growercare.casesvc.config;
 
+import com.growercare.common.error.ConflictException;
 import com.growercare.outbox.inbox.InboxDeduplicator;
 import com.growercare.outbox.inbox.MalformedEventException;
 import java.time.Duration;
@@ -44,7 +45,7 @@ public class CaseEventsConfig {
         var backOff = new ExponentialBackOff(initialBackoff.toMillis(), 2.0);
         backOff.setMaxAttempts(RETRIES);
         var handler = new DefaultErrorHandler(recoverer, backOff);
-        handler.addNotRetryableExceptions(MalformedEventException.class, com.growercare.common.error.ConflictException.class);   // D10
+        handler.addNotRetryableExceptions(MalformedEventException.class, ConflictException.class);   // D10: permanent conflicts
         return handler;
     }
 }

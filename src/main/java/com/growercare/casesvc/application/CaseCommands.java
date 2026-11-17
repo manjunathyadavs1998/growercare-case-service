@@ -25,10 +25,12 @@ import com.growercare.security.RequiresPermission;
 import com.growercare.security.ResourceScope;
 import com.growercare.security.UserType;
 import com.growercare.security.web.CurrentPrincipal;
+import com.growercare.shard.Country;
 import com.growercare.shard.ShardId;
 import com.growercare.shard.ShardRouter;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -170,8 +172,8 @@ public class CaseCommands {
      * cases in, and store it only when the fetched grower is inside the caller's creation scope. Every other outcome is
      * the same 404 as an unknown grower.
      */
-    private ReferenceData.Grower readThrough(GcPrincipal principal, long growerId, String bu, java.time.Instant now) {
-        var country = router.countryOfId(growerId).map(com.growercare.shard.Country::code)
+    private ReferenceData.Grower readThrough(GcPrincipal principal, long growerId, String bu, Instant now) {
+        var country = router.countryOfId(growerId).map(Country::code)
                 .orElseThrow(() -> new NotFoundException("Grower"));
         boolean mayCreateThere = country.equals(principal.homeCountry())
                 || principal.grantsWith("case:create", now).anyMatch(g -> g.countries().contains(country));

@@ -6,6 +6,7 @@ import com.growercare.common.error.ConflictException;
 import com.growercare.common.error.DependencyUnavailableException;
 import com.growercare.common.error.ErrorCode;
 import com.growercare.common.sql.NamedSqlRegistry;
+import java.sql.SQLException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -24,7 +25,7 @@ class JdbcGrowerReplicaStore implements GrowerReplicaStore {
 
     /** SQLState 23503 = foreign_key_violation. */
     static boolean isForeignKeyViolation(DataIntegrityViolationException e) {
-        return e.getMostSpecificCause() instanceof java.sql.SQLException sql && "23503".equals(sql.getSQLState());
+        return e.getMostSpecificCause() instanceof SQLException sql && "23503".equals(sql.getSQLState());
     }
 
     @Override
