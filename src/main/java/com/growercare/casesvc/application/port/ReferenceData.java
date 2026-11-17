@@ -10,7 +10,12 @@ import java.util.Set;
 /** Read-only reference data (schema {@code ref}: replicas + workflow definition). */
 public interface ReferenceData {
 
-    record Grower(long growerId, String countryCode, long territoryId, Long userId) { }
+    /** {@code status}: ACTIVE, PENDING_CONSENT, INACTIVE or ERASED (SPEC-CASE-06 D4). */
+    record Grower(long growerId, String countryCode, long territoryId, Long userId, String status) {
+        public boolean active() {
+            return "ACTIVE".equals(status);
+        }
+    }
 
     record CaseType(String code, int defaultSlaHours, boolean active, String initialStatus) { }
 

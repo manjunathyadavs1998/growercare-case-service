@@ -56,6 +56,7 @@
 | CASE-E28 | R23 | grower.in1 | for grower 99999 | 404 |
 | CASE-E29 | R24 | grower.in1 | no `Idempotency-Key` | 400 |
 | CASE-E30 | R24 | grower.in1 | caseType `NOT_A_TYPE` / title "" / title 201 chars / description 4001 chars / no product + no buCode | 400 with the field |
+| CASE-E30f | R24 | grower.in1, care.in, tm.in | `"9999999999999999999"` (matches the id pattern but is above the 64-bit range) as `growerId`, `farmId`, `productId` (create), `territoryId` (list query), `assigneeUserId` (assign), `replyToCommentId` and `attachmentIds` (comment), `partnerOrgId` (share and unshare) | 400 with that field, never 500 |
 | CASE-E31 | R25 | grower.br1 | product 9003 (not registered in BR) | 422 `case.product-not-registered` |
 | CASE-E32 | R25 | grower.in1 | product 9001, batch `HYC2605-009` (batch of 9003) | 422 `case.batch-unknown` |
 | CASE-E33 | R25 | grower.in1 | farm 80002 (of 70002) | 422 `case.farm-not-of-grower` |
@@ -63,7 +64,7 @@
 | CASE-E35 | R27 | grower.in1 | same key, different title | 409 `IDEMPOTENCY_KEY_REUSED` |
 | CASE-E36 | R28 | grower.in1 / care.in / tm.in | GET own E20 case by id and by number | 200, ETag "0" |
 | CASE-E37 | R29 | grower.in2 / care.br / agro.in (not assigned) / retailer2.in | GET E20 case | 404 |
-| CASE-E38 | R29 | care.in | GET `/cases/abc`, `/cases/0`, `/cases/by-no/71-0318-27-482139-5`, id with country index 5 | 404 |
+| CASE-E38 | R29 | care.in | GET `/cases/abc`, `/cases/0`, `/cases/by-no/71-0318-27-482139-5`, id with country index 5, `/cases/9999999999999999999` (above the 64-bit range), attachment path ids above the range (complete, download) | 404, never 500 |
 | CASE-E39 | R30 | grower.in1 / tm.in → full; care.in / retailer.in → masked | GET E24 case | `growerName` "Ramesh Patil" vs "R***** P****"; `growerPhoneLast4` "3210"; no phone field |
 | CASE-E40 | R31 | care.in | create 3 cases, then list `limit=2` and follow the cursor | pages [c3, c2], [c1, …]; no duplicates; only in-scope rows |
 | CASE-E41 | R31 | grower.in2 | list | only grower 70002's cases |
@@ -125,6 +126,7 @@ The isolation matrix from SPEC-CASE-01 applies to every endpoint.
 | R23–R25 / E25–E33 | `CaseLifecycleIT$Create#rejected` (parameterized) |
 | R26 / E34 · R27 / E35 | `CaseLifecycleIT$Create#caseE34…`, `#caseE35…`; hash rules in `CaseRulesTest#idempotencyHashDetectsChangedRequests` |
 | R28/R29 / E36–E38 | `CaseLifecycleIT$Read#byIdAndByNumber`, `#malformedReferencesAreNotFound` (parameterized) |
+| R24/R29 / E30f, E38 (64-bit overflow on every id input) | `IdOverflowIT#overflowIsAClientErrorNever500`, `CaseLifecycleIT` E30f rows |
 | R30 / E39 | `CaseLifecycleIT$Read#growerNameIsMaskedByClearance`; `CaseRulesTest#growerNamesAreMaskedWordByWord` |
 | R31–R33 / E40–E44 | `CaseLifecycleIT$Lists` (keyset pages, own-only, assignedToMe, invalid queries parameterized, archive 501); `CursorTest` |
 | R34–R37 / E45–E49, E52 | `CaseLifecycleIT$Transitions` (E45, E46 scenarios; rejections parameterized) |

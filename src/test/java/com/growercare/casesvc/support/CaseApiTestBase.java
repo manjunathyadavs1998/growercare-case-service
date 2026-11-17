@@ -80,7 +80,7 @@ public abstract class CaseApiTestBase {
         @Bean
         @Primary
         PrincipalResolver stubIamBySubject() {
-            return subject -> Optional.ofNullable(BY_SUBJECT.get(subject));
+            return subject -> Optional.ofNullable(BY_SUBJECT.get(subject)).or(() -> DevSeedPrincipals.testGrowerFor(subject));
         }
 
         @Bean
@@ -88,7 +88,17 @@ public abstract class CaseApiTestBase {
         AssigneeDirectory stubIamByUserId() {
             return userId -> Optional.ofNullable(BY_USER_ID.get(userId));
         }
+
+        /** Stands in for grower-service (SPEC-CASE-06): the seed growers, plus whatever a test adds. */
+        @Bean
+        @Primary
+        StubGrowerDirectory stubGrowerDirectory() {
+            return new StubGrowerDirectory();
+        }
     }
+
+    @Autowired
+    protected StubGrowerDirectory growerDirectory;
 
     protected static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -125,10 +135,10 @@ public abstract class CaseApiTestBase {
                 .andExpect(jsonPath("$.code").value(code));
     }
 
-    /** A complaint by grower 70001 (Pune, CP), the spec's typical case "A". */
+    /** A complaint by grower G1 (Pune, CP), the spec's typical case "A". */
     protected static Map<String, Object> complaint() {
         var body = new LinkedHashMap<String, Object>();
-        body.put("growerId", "70001");
+        body.put("growerId", SeedGrowers.id(SeedGrowers.G1));
         body.put("caseType", "PRODUCT_COMPLAINT");
         body.put("title", "Leaves yellowing after spray");
         body.put("description", "Brown spots appeared three days after spraying.");

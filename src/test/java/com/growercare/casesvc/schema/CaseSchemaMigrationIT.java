@@ -1,5 +1,6 @@
 package com.growercare.casesvc.schema;
 
+import com.growercare.casesvc.support.SeedGrowers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -70,7 +71,7 @@ class CaseSchemaMigrationIT {
         @Test
         void databaseGeneratedIdsDecodeToCountryShardAndTime() {
             var before = Instant.now().minusSeconds(5);
-            var row = insertCase("in_s27", "PRODUCT_COMPLAINT", "SUBMITTED", 70001L, 1002L);
+            var row = insertCase("in_s27", "PRODUCT_COMPLAINT", "SUBMITTED", SeedGrowers.G1, 1002L);
             var decoded = IdCodec.decode(row.caseId());
 
             assertThat(decoded.countryIx()).isEqualTo(46);
@@ -85,7 +86,7 @@ class CaseSchemaMigrationIT {
         @Test
         void idsAreUniqueAndIncreasingWithinAShard() {
             var ids = IntStream.range(0, 200)
-                    .mapToObj(i -> insertCase("br_s05", "AGRONOMY_ADVICE", "SUBMITTED", 70003L, 2002L).caseId())
+                    .mapToObj(i -> insertCase("br_s05", "AGRONOMY_ADVICE", "SUBMITTED", SeedGrowers.G4, 2002L).caseId())
                     .toList();
             assertThat(new HashSet<>(ids)).hasSize(200);
             assertThat(ids).isSorted();
@@ -111,7 +112,7 @@ class CaseSchemaMigrationIT {
 
         @Test
         void newRowsLandInTheCurrentWeeklyPartitionNotTheDefault() {
-            var row = insertCase("in_s01", "AGRONOMY_ADVICE", "SUBMITTED", 70001L, 1002L);
+            var row = insertCase("in_s01", "AGRONOMY_ADVICE", "SUBMITTED", SeedGrowers.G1, 1002L);
             var partition = app.sql("SELECT tableoid::regclass::text FROM in_s01.cases WHERE case_id = ?")
                     .param(row.caseId()).query(String.class).single();
             assertThat(partition).matches("in_s01\\.cases_w\\d{8}");
@@ -137,25 +138,25 @@ class CaseSchemaMigrationIT {
 
         @Test
         void statusMustBelongToTheCaseType() {
-            assertThatThrownBy(() -> insertCase("in_s03", "AGRONOMY_ADVICE", "LAB_ANALYSIS", 70001L, 1002L))
+            assertThatThrownBy(() -> insertCase("in_s03", "AGRONOMY_ADVICE", "LAB_ANALYSIS", SeedGrowers.G1, 1002L))
                     .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("cases_status_fk");
         }
 
         @Test
         void growerMustBelongToTheShardCountry() {
-            assertThatThrownBy(() -> insertCase("in_s03", "AGRONOMY_ADVICE", "SUBMITTED", 70003L /* BR grower */, 1002L))
+            assertThatThrownBy(() -> insertCase("in_s03", "AGRONOMY_ADVICE", "SUBMITTED", SeedGrowers.G4 /* BR grower */, 1002L))
                     .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("cases_grower_fk");
         }
 
         @Test
         void territoryMustBelongToTheShardCountry() {
-            assertThatThrownBy(() -> insertCase("in_s03", "AGRONOMY_ADVICE", "SUBMITTED", 70001L, 2002L /* BR */))
+            assertThatThrownBy(() -> insertCase("in_s03", "AGRONOMY_ADVICE", "SUBMITTED", SeedGrowers.G1, 2002L /* BR */))
                     .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("cases_territory_fk");
         }
 
         @Test
         void commentsAreIdempotentPerClientMessageId() {
-            var row = insertCase("in_s04", "PRODUCT_COMPLAINT", "SUBMITTED", 70001L, 1002L);
+            var row = insertCase("in_s04", "PRODUCT_COMPLAINT", "SUBMITTED", SeedGrowers.G1, 1002L);
             var msgId = UUID.randomUUID();
             postComment("in_s04", row.caseId(), msgId);
             // On a partitioned table PostgreSQL names the PARTITION's index (e.g. case_comment_w20261109_case_id_client_msg_id_key),
@@ -173,7 +174,7 @@ class CaseSchemaMigrationIT {
 
         @Test
         void activityStatusFieldsMatchTheActivityType() {
-            var row = insertCase("in_s04", "PRODUCT_COMPLAINT", "SUBMITTED", 70001L, 1002L);
+            var row = insertCase("in_s04", "PRODUCT_COMPLAINT", "SUBMITTED", SeedGrowers.G1, 1002L);
             assertThatThrownBy(() -> app.sql("""
                     INSERT INTO in_s04.case_activity (case_id, activity_type, actor_user_id, from_status, to_status)
                     VALUES (?, 'STATUS_CHANGED', 101, 'TRIAGED', 'TRIAGED')""").param(row.caseId()).update())
@@ -200,6 +201,46 @@ class CaseSchemaMigrationIT {
         void appRoleCannotWriteReferenceData() {
             assertThatThrownBy(() -> app.sql("UPDATE ref.country SET active = false").update())
                     .isInstanceOf(DataAccessException.class).rootCause().hasMessageContaining("permission denied");
+        }
+
+        /** SPEC-CASE-06 R150 / E150: the grower replica is the one ref table the runtime role writes (upserts only). */
+        @org.junit.jupiter.params.ParameterizedTest(name = "CASE-E150 {0} allowed: {1}")
+        @org.junit.jupiter.params.provider.CsvSource(delimiter = '|', textBlock = """
+                INSERT INTO ref.grower (grower_id, country_code, territory_id, display_name, status, version) VALUES (9300001, 'IN', 1002, 'E150', 'ACTIVE', 0) ON CONFLICT DO NOTHING | true
+                UPDATE ref.grower SET version = version WHERE grower_id = 9300001                                                                                         | true
+                UPDATE ref.territory SET name = name WHERE territory_id = 1002                                                                                            | false
+                DELETE FROM ref.grower WHERE grower_id = 9300001                                                                                                         | false
+                """)
+        void appRoleWritesOnlyTheGrowerReplica(String sql, boolean allowed) {
+            if (allowed) {
+                app.sql(sql).update();
+            } else {
+                assertThatThrownBy(() -> app.sql(sql).update())
+                        .isInstanceOf(DataAccessException.class).rootCause().hasMessageContaining("permission denied");
+            }
+        }
+    }
+
+    /** SPEC-CASE-06 R151 / E151: the dev seed describes the same growers as grower-service (D6). */
+    @Nested
+    class GrowerReplicaSeed {
+
+        @org.junit.jupiter.params.ParameterizedTest(name = "CASE-E151 grower {0}: status {1}, user {2}, farm {3}")
+        @org.junit.jupiter.params.provider.CsvSource(nullValues = "NULL", textBlock = """
+                110165911145454593, ACTIVE,          1,    80001
+                110165911145445378, ACTIVE,          2,    80002
+                110165911145455619, PENDING_CONSENT, NULL, 80004
+                110165911142966276, ACTIVE,          3,    80003
+                70001,              INACTIVE,        NULL, NULL
+                70004,              INACTIVE,        NULL, NULL
+                """)
+        void seedGrowers(long growerId, String status, Long userId, Long farmId) {
+            var row = owner.sql("SELECT status, user_id FROM ref.grower WHERE grower_id = ?").param(growerId)
+                    .query((rs, n) -> new Object[] {rs.getString(1), rs.getObject(2, Long.class)}).single();
+            assertThat(row[0]).isEqualTo(status);
+            assertThat(row[1]).isEqualTo(userId);
+            var farms = owner.sql("SELECT farm_id FROM ref.farm WHERE grower_id = ?").param(growerId).query(Long.class).list();
+            assertThat(farms).isEqualTo(farmId == null ? java.util.List.of() : java.util.List.of(farmId));
         }
     }
 

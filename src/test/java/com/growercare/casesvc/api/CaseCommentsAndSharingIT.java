@@ -37,7 +37,7 @@ import org.springframework.test.web.servlet.ResultActions;
 /** SPEC-CASE-03 ({@code docs/specs/case/03-comments-and-sharing.md}); row names are the spec example IDs. */
 class CaseCommentsAndSharingIT extends CaseApiTestBase {
 
-    /** "Case A": raised by retailer.in for grower 70001, so grower.in1, care.in and retailer.in can all read it. */
+    /** "Case A": raised by retailer.in for grower G1, so grower.in1, care.in and retailer.in can all read it. */
     String caseA() throws Exception {
         return createCase(RETAILER_IN, complaint());
     }
