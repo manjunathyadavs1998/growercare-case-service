@@ -1,5 +1,6 @@
 package com.growercare.casesvc.api;
 
+import com.growercare.casesvc.support.SeedGrowers;
 import static com.growercare.casesvc.support.DevSeedPrincipals.AGRO_IN;
 import static com.growercare.casesvc.support.DevSeedPrincipals.CARE_BR;
 import static com.growercare.casesvc.support.DevSeedPrincipals.CARE_IN;
@@ -61,10 +62,10 @@ class CaseLifecycleIT extends CaseApiTestBase {
                             with(complaint(), "caseType", "AGRONOMY_ADVICE", "productId", null, "batchNo", null, "buCode", "SEEDS"),
                             Map.of("status", "SUBMITTED", "buCode", "SEEDS", "raisedChannel", "APP")),
                     argumentSet("CASE-E22 care agent for an assisted grower", CARE_IN,
-                            with(complaint(), "growerId", "70004", "farmId", "80004"),
+                            with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.K1), "farmId", SeedGrowers.id(SeedGrowers.FARM_K1)),
                             Map.of("territoryId", "1005", "raisedChannel", "CARE_CALL", "raisedByUserId", "101")),
                     argumentSet("CASE-E23 territory manager in the field", TM_IN,
-                            with(complaint(), "growerId", "70002", "farmId", "80002"),
+                            with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G2), "farmId", "80002"),
                             Map.of("territoryId", "1003", "raisedChannel", "FIELD")),
                     argumentSet("CASE-E24 retailer at the shop", RETAILER_IN, complaint(),
                             Map.of("raisedChannel", "RETAILER", "raisedViaPartnerOrgId", "501")));
@@ -101,9 +102,9 @@ class CaseLifecycleIT extends CaseApiTestBase {
         /** actor, body, send Idempotency-Key, status, code, rule (422) or field (400) or null. */
         static Stream<Arguments> rejected() {
             return Stream.of(
-                    argumentSet("CASE-E25 other grower's record", GROWER_IN1, with(complaint(), "growerId", "70002", "farmId", null), true, 404, "NOT_FOUND", null),
-                    argumentSet("CASE-E26 grower of another country", CARE_IN, with(complaint(), "growerId", "70003", "farmId", null), true, 404, "NOT_FOUND", null),
-                    argumentSet("CASE-E27 grower outside territory", TM_IN, with(complaint(), "growerId", "70004", "farmId", null), true, 404, "NOT_FOUND", null),
+                    argumentSet("CASE-E25 other grower's record", GROWER_IN1, with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G2), "farmId", null), true, 404, "NOT_FOUND", null),
+                    argumentSet("CASE-E26 grower of another country", CARE_IN, with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G4), "farmId", null), true, 404, "NOT_FOUND", null),
+                    argumentSet("CASE-E27 grower outside territory", TM_IN, with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.K1), "farmId", null), true, 404, "NOT_FOUND", null),
                     argumentSet("CASE-E28 unknown grower", GROWER_IN1, with(complaint(), "growerId", "99999", "farmId", null), true, 404, "NOT_FOUND", null),
                     argumentSet("CASE-E29 missing Idempotency-Key", GROWER_IN1, complaint(), false, 400, "VALIDATION_FAILED", null),
                     argumentSet("CASE-E30a unknown case type", GROWER_IN1, with(complaint(), "caseType", "NOT_A_TYPE"), true, 400, "VALIDATION_FAILED", "caseType"),
@@ -114,7 +115,7 @@ class CaseLifecycleIT extends CaseApiTestBase {
                     argumentSet("CASE-E30f growerId above Long.MAX_VALUE", GROWER_IN1, with(complaint(), "growerId", "9999999999999999999"), true, 400, "VALIDATION_FAILED", "growerId"),
                     argumentSet("CASE-E30f farmId above Long.MAX_VALUE", GROWER_IN1, with(complaint(), "farmId", "9999999999999999999"), true, 400, "VALIDATION_FAILED", "farmId"),
                     argumentSet("CASE-E31 product not registered in BR", GROWER_BR1,
-                            with(complaint(), "growerId", "70003", "farmId", "80003", "productId", "9003", "batchNo", null), true, 422, "BUSINESS_RULE_VIOLATION", "case.product-not-registered"),
+                            with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G4), "farmId", "80003", "productId", "9003", "batchNo", null), true, 422, "BUSINESS_RULE_VIOLATION", "case.product-not-registered"),
                     argumentSet("CASE-E32 batch of another product", GROWER_IN1, with(complaint(), "batchNo", "HYC2605-009"), true, 422, "BUSINESS_RULE_VIOLATION", "case.batch-unknown"),
                     argumentSet("CASE-E33 farm of another grower", GROWER_IN1, with(complaint(), "farmId", "80002"), true, 422, "BUSINESS_RULE_VIOLATION", "case.farm-not-of-grower"));
         }
@@ -233,7 +234,7 @@ class CaseLifecycleIT extends CaseApiTestBase {
             var tag = UUID.randomUUID().toString();
             var created = new ArrayList<String>();
             for (int i = 0; i < 3; i++) {
-                created.add(createCase(CARE_IN, with(complaint(), "growerId", "70004", "farmId", "80004", "title", tag + " " + i)));
+                created.add(createCase(CARE_IN, with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.K1), "farmId", SeedGrowers.id(SeedGrowers.FARM_K1), "title", tag + " " + i)));
             }
             var seen = new ArrayList<String>();
             String cursor = null;
@@ -255,10 +256,10 @@ class CaseLifecycleIT extends CaseApiTestBase {
 
         @Test
         void caseE41GrowerListsOnlyOwnCases() throws Exception {
-            createCase(GROWER_IN2, with(complaint(), "growerId", "70002", "farmId", "80002"));
+            createCase(GROWER_IN2, with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G2), "farmId", "80002"));
             var json = as(GROWER_IN2, get("/cases").param("limit", "100")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
             List<String> growers = JsonPath.read(json, "$.items[*].growerId");
-            assertThat(growers).isNotEmpty().containsOnly("70002");
+            assertThat(growers).isNotEmpty().containsOnly(SeedGrowers.id(SeedGrowers.G2));
         }
 
         @Test

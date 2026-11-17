@@ -8,6 +8,7 @@ OIDC_ISSUER_URI: http://issuer.test.invalid/realms/growercare
 OIDC_JWKS_URI: http://issuer.test.invalid/realms/growercare/protocol/openid-connect/certs
 OIDC_TOKEN_URI: http://issuer.test.invalid/realms/growercare/protocol/openid-connect/token
 IAM_BASE_URL: http://iam.test.invalid
+GROWER_BASE_URL: http://grower.test.invalid
 IAM_CLIENT_ID: case-service
 IAM_CLIENT_SECRET: test-secret
 REDIS_HOST: set-by-testcontainers.invalid

@@ -45,7 +45,7 @@
 | CASE-R151 | dev seed (local and tests only) | migration | G1–G4 rows with grower-service's ids and data (D6); seeded farms point at them; the 70001…70004 rows become `INACTIVE` with `user_id NULL` |
 
 ## 2. Examples
-**Fixture:** grower-service's dev seed (SPEC-GRW-01 §2): G1 Ramesh Patil (user 1, IN, 1002, partner 501), G2 Sunita Rao (user 2, IN, 1003, 502), G3 Lakshmi (assisted, PENDING_CONSENT, IN, 1005, onboarded via 502), G4 Joao Silva (user 3, BR, 2002). In tests, grower-service is a stub (`GrowerDirectory` port) returning these and whatever a test registers.
+**Fixture:** grower-service's dev seed (SPEC-GRW-01 §2): G1 Ramesh Patil (user 1, IN, 1002, partner 501), G2 Sunita Rao (user 2, IN, 1003, 502), G3 Lakshmi (assisted, PENDING_CONSENT, IN, 1005, onboarded via 502), G4 Joao Silva (user 3, BR, 2002). In tests, grower-service is a stub (`GrowerDirectory` port) returning these and whatever a test registers. Tests also add **K1**, a test-only ACTIVE grower in Karnataka (1005, farm 80005), because G3 there is PENDING_CONSENT and many existing rows (routing, territory scope) need a Karnataka grower who can have cases; K1 is inserted by the test database only, never by the dev seed.
 
 | Example | Rule | Given / input | Expected |
 |---|---|---|---|

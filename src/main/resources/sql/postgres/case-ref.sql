@@ -1,12 +1,13 @@
 -- Reference data (schema ref, read-only replicas + workflow). Statement ids: case-ref.<name>
 
+-- SPEC-CASE-06 D4: any status; creation decides (only ACTIVE growers get cases, 422 otherwise).
 -- name: grower
-SELECT g.grower_id, g.country_code, g.territory_id, g.user_id
+SELECT g.grower_id, g.country_code, g.territory_id, g.user_id, g.status
   FROM ref.grower g
- WHERE g.grower_id = :growerId AND g.status = 'ACTIVE'
+ WHERE g.grower_id = :growerId
 
 -- name: growersOfUser
-SELECT g.grower_id, g.country_code, g.territory_id, g.user_id
+SELECT g.grower_id, g.country_code, g.territory_id, g.user_id, g.status
   FROM ref.grower g
  WHERE g.user_id = :userId AND g.status = 'ACTIVE'
 

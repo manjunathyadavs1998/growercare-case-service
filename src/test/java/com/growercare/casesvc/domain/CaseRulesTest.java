@@ -1,5 +1,6 @@
 package com.growercare.casesvc.domain;
 
+import com.growercare.casesvc.support.SeedGrowers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.params.provider.Arguments.argumentSet;
 
@@ -50,7 +51,7 @@ class CaseRulesTest {
         assertThat(CaseRules.channelFor(principal, NOW)).isEqualTo(channel);
     }
 
-    static final NewCaseCommand BASE = new NewCaseCommand(70001L, "PRODUCT_COMPLAINT", "Leaves yellowing",
+    static final NewCaseCommand BASE = new NewCaseCommand(SeedGrowers.G1, "PRODUCT_COMPLAINT", "Leaves yellowing",
             "Spots after spray", 80001L, 9001L, "AZX2604-117", null, "NORMAL", UUID.fromString("0196c1b2-7c3a-7cc0-8a1b-000000000001"));
 
     static Stream<Arguments> requestHashes() {

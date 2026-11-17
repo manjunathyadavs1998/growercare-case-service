@@ -7,7 +7,7 @@ gc.required-properties: >-
   spring.security.oauth2.resourceserver.jwt.issuer-uri, spring.security.oauth2.resourceserver.jwt.jwk-set-uri,
   spring.security.oauth2.client.registration.iam.client-id, spring.security.oauth2.client.registration.iam.client-secret,
   spring.security.oauth2.client.provider.keycloak.token-uri,
-  gc.iam.base-url, spring.data.redis.host, spring.data.redis.password, spring.kafka.bootstrap-servers,
+  gc.iam.base-url, gc.grower.base-url, spring.data.redis.host, spring.data.redis.password, spring.kafka.bootstrap-servers,
   gc.attachments.region, gc.attachments.staging-bucket, gc.attachments.clean-bucket, gc.attachments.quarantine-bucket
 
 server:
@@ -98,6 +98,11 @@ gc.iam:
   base-url: ${IAM_BASE_URL}
   connect-timeout: 1s
   read-timeout: 2s
+# SPEC-CASE-06: grower-service's internal replica view (network only).
+gc.grower:
+  base-url: ${GROWER_BASE_URL}
+  connect-timeout: 1s
+  read-timeout: 2s
 gc.security:
   principal-cache-ttl: 5m
   cors-allowed-origins: ${GC_CORS_ALLOWED_ORIGINS:}
@@ -120,6 +125,7 @@ spring.kafka:
 gc.events:
   consumers-enabled: ${GC_EVENTS_CONSUMERS_ENABLED:true}
   grant-topic: iam.grant.events
+  grower-topic: grower.grower.events
   retry-initial-backoff: 1s
 
 # ---------------------------------------------------------------- attachments (SPEC-CASE-05)
