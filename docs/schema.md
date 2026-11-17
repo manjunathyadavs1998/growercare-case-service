@@ -184,6 +184,16 @@ SLA state is **not stored** (it would drift). It is computed from `sla_started_a
 | `latitude` / `longitude` | — | Stay NULL in v1: precise location is PII (PRV-5) and needs field-level encryption first. EXIF GPS is stripped from images |
 | `iam.permission` `case:attach` | — | Granted to every role with `comment:post-public` or `comment:post-partner` (9 roles) |
 
+## 5d. Grower replica (SPEC-CASE-06, migrations common V7 / dev-seed V1002)
+- `ref.grower` is maintained from grower-service: `grower.*` events trigger a fetch of its internal view, and case creation reads through on a miss, but only after the caller is authorised for that grower (D9). The upsert is version-guarded (`version`, D3).
+- The runtime role may `INSERT`/`UPDATE` `ref.grower`, and only that table (`DELETE` revoked). Every other `ref` table stays read-only.
+- The status CHECK includes `PENDING_CONSENT`. Only `ACTIVE` growers get cases (D4).
+- Foreign-key violations (unknown territory or partner, SQLState 23503) are transient reference-data gaps (D7). Other integrity conflicts, such as a user already linked to another replica grower, are permanent (409 / DLQ at once, D10).
+- **Dev seed V1002 was corrected after release (deliberate).** The first version, merged in #6, moved farms 80001–80004 to G1–G4. On any database with cases on those farms, that move violates `cases_farm_fk`, so the migration failed and was never recorded. The corrected version gives G1–G4 new farms (80011–80014) instead.
+  - A new `V1003` could not have fixed this: the failing `V1002` runs first.
+  - Dev seeds never run in production, and test databases are recreated on every run.
+  - The only databases affected are fresh dev databases created from `main`'s image in the short window between #6 and the fix. Those recreate the local `gc_case` volume (checksum mismatch on start).
+
 ## 6. Ready for Snowflake
 - **Every row carries what the warehouse needs:** `country_code`, `case_id` (time-ordered, decodable), `created_at`/`updated_at`, `version`. Debezium CDC rows are therefore self-describing (doc 03).
 - **Facts aren't hidden in JSON,** so Snowflake RAW → CURATED needs no JSON parsing for business fields.
@@ -192,7 +202,7 @@ SLA state is **not stored** (it would drift). It is computed from `sla_started_a
 ## 7. Known limits and follow-ups
 | Item | Plan |
 |---|---|
-| Replicas are seeded, not yet synced | Event consumers (inbox) once grower, catalog and control-plane exist |
+| Replicas other than `ref.grower` (geography, partners, farms, products) are seeded, not yet synced | Event consumers (inbox) once catalog, control-plane, IAM partner events and SPEC-GRW-02 (farms) exist. `ref.grower` is synced since SPEC-CASE-06 |
 | `case_no` uniqueness is not DB-enforced | Monitoring query; wraparound alert at 60% (doc 04) |
 | Direct DML on individual partitions bypasses the parent's REVOKE DELETE | The app always addresses parents; a dedicated purge role arrives with the archiver (ADR-004) |
 | Seeding the shard map for a new country needs a common migration | Control-plane will own country activation |
