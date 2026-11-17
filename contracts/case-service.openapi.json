@@ -118,6 +118,12 @@
       },
       "CaseView" : {
         "properties" : {
+          "allowedTransitions" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TransitionView"
+            },
+            "type" : "array"
+          },
           "assigneeUserId" : {
             "type" : "string"
           },
@@ -126,6 +132,9 @@
           },
           "buCode" : {
             "type" : "string"
+          },
+          "canAssign" : {
+            "type" : "boolean"
           },
           "caseId" : {
             "type" : "string"
@@ -427,6 +436,17 @@
           }
         },
         "required" : [ "toStatus" ],
+        "type" : "object"
+      },
+      "TransitionView" : {
+        "properties" : {
+          "closes" : {
+            "type" : "boolean"
+          },
+          "toStatus" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       }
     },

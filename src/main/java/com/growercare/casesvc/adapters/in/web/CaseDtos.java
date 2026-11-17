@@ -61,10 +61,17 @@ final class CaseDtos {
             String raisedByUserId, String raisedChannel, String raisedViaPartnerOrgId,
             String productId, String batchNo, String title, String description, String assigneeUserId,
             Instant slaDueAt, Instant createdAt, Instant updatedAt, Instant closedAt, int version,
-            String queueCode, String slaState) {
+            String queueCode, String slaState,
+            List<TransitionView> allowedTransitions, Boolean canAssign) {
 
         /** R30: the grower's name is masked unless the caller has FULL clearance; the phone never leaves. */
         static CaseView of(CaseRecord c, PiiClearance clearance, SlaRules.SlaState slaState) {
+            return of(c, clearance, slaState, null);
+        }
+
+        /** SPEC-CASE-09: single-case responses carry what the caller may do next; lists leave both fields null (D3). */
+        static CaseView of(CaseRecord c, PiiClearance clearance, SlaRules.SlaState slaState,
+                           com.growercare.casesvc.application.CaseQueries.AllowedActions actions) {
             return new CaseView(
                     id(c.caseId()), c.caseNo().formatted(), c.caseType(), c.status(), c.priority(),
                     c.countryCode(), id(c.territoryId()), c.buCode(),
@@ -73,9 +80,14 @@ final class CaseDtos {
                     id(c.raisedByUserId()), c.raisedChannel(), id(c.raisedViaPartnerOrgId()),
                     id(c.productId()), c.batchNo(), c.title(), c.description(), id(c.assigneeUserId()),
                     c.slaDueAt(), c.createdAt(), c.updatedAt(), c.closedAt(), c.version(),
-                    c.queueCode(), slaState.name());
+                    c.queueCode(), slaState.name(),
+                    actions == null ? null : actions.transitions().stream().map(e -> new TransitionView(e.toStatus(), e.toClosed())).toList(),
+                    actions == null ? null : actions.canAssign());
         }
     }
+
+    /** SPEC-CASE-09 D1: a transition the caller may take now; {@code closes} = the target status closes the case. */
+    record TransitionView(String toStatus, boolean closes) { }
 
     record CasePage(List<CaseView> items, String nextCursor) { }
 
