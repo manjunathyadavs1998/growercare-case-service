@@ -227,12 +227,12 @@ class CaseSchemaMigrationIT {
 
         @org.junit.jupiter.params.ParameterizedTest(name = "CASE-E151 grower {0}: status {1}, user {2}, farm {3}")
         @org.junit.jupiter.params.provider.CsvSource(nullValues = "NULL", textBlock = """
-                110165911145454593, ACTIVE,          1,    80001
-                110165911145445378, ACTIVE,          2,    80002
-                110165911145455619, PENDING_CONSENT, NULL, 80004
-                110165911142966276, ACTIVE,          3,    80003
-                70001,              INACTIVE,        NULL, NULL
-                70004,              INACTIVE,        NULL, NULL
+                110165911145454593, ACTIVE,          1,    80011
+                110165911145445378, ACTIVE,          2,    80012
+                110165911145455619, PENDING_CONSENT, NULL, 80014
+                110165911142966276, ACTIVE,          3,    80013
+                70001,              INACTIVE,        NULL, 80001
+                70004,              INACTIVE,        NULL, 80004
                 """)
         void seedGrowers(long growerId, String status, Long userId, Long farmId) {
             var row = owner.sql("SELECT status, user_id FROM ref.grower WHERE grower_id = ?").param(growerId)

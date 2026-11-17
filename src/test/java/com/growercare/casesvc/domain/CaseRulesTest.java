@@ -52,7 +52,7 @@ class CaseRulesTest {
     }
 
     static final NewCaseCommand BASE = new NewCaseCommand(SeedGrowers.G1, "PRODUCT_COMPLAINT", "Leaves yellowing",
-            "Spots after spray", 80001L, 9001L, "AZX2604-117", null, "NORMAL", UUID.fromString("0196c1b2-7c3a-7cc0-8a1b-000000000001"));
+            "Spots after spray", SeedGrowers.FARM_G1, 9001L, "AZX2604-117", null, "NORMAL", UUID.fromString("0196c1b2-7c3a-7cc0-8a1b-000000000001"));
 
     static Stream<Arguments> requestHashes() {
         return Stream.of(

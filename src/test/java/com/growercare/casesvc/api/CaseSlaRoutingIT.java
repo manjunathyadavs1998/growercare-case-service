@@ -95,7 +95,7 @@ class CaseSlaRoutingIT extends CaseApiTestBase {
                     argumentSet("CASE-E80 IN adverse incident uses the country policy (48 h)", GROWER_IN1,
                             with(complaint(), "caseType", "ADVERSE_INCIDENT"), 48),
                     argumentSet("CASE-E81 BR adverse incident uses the country policy (72 h)", GROWER_BR1,
-                            with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G4), "farmId", "80003", "caseType", "ADVERSE_INCIDENT"), 72),
+                            with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G4), "farmId", SeedGrowers.id(SeedGrowers.FARM_G4), "caseType", "ADVERSE_INCIDENT"), 72),
                     argumentSet("CASE-E82 complaint uses the type default (240 h)", GROWER_IN1, complaint(), 240));
         }
 
@@ -173,7 +173,7 @@ class CaseSlaRoutingIT extends CaseApiTestBase {
 
         @Test
         void caseE93ClosingCancelsTimers() throws Exception {
-            var caseId = createCaseOk(GROWER_IN1, advice(SeedGrowers.id(SeedGrowers.G1), "80001"));
+            var caseId = createCaseOk(GROWER_IN1, advice(SeedGrowers.id(SeedGrowers.G1), SeedGrowers.id(SeedGrowers.FARM_G1)));
             transition(CARE_IN, caseId, 0, "IN_PROGRESS");
             transition(CARE_IN, caseId, 1, "ADVICE_GIVEN");
             transition(CARE_IN, caseId, 2, "CLOSED");
@@ -241,7 +241,7 @@ class CaseSlaRoutingIT extends CaseApiTestBase {
 
         @Test
         void caseE97QueueFilter() throws Exception {
-            var caseId = createCaseOk(GROWER_IN2, with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G2), "farmId", "80002", "caseType", "ADVERSE_INCIDENT"));
+            var caseId = createCaseOk(GROWER_IN2, with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G2), "farmId", SeedGrowers.id(SeedGrowers.FARM_G2), "caseType", "ADVERSE_INCIDENT"));
             var listed = as(CARE_IN, get("/cases").param("queue", "IN-STEWARDSHIP").param("limit", "100"))
                     .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
             assertThat(JsonPath.<List<String>>read(listed, "$.items[*].caseId")).contains(caseId);
@@ -261,12 +261,12 @@ class CaseSlaRoutingIT extends CaseApiTestBase {
             return Stream.of(
                     argumentSet("CASE-E84 adverse incident → stewardship", GROWER_IN1, with(complaint(), "caseType", "ADVERSE_INCIDENT"), "IN-STEWARDSHIP"),
                     argumentSet("CASE-E85 seeds complaint → seeds quality", GROWER_IN2,
-                            with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G2), "farmId", "80002", "productId", "9003", "batchNo", "HYC2605-009"), "IN-SEEDS-QUALITY"),
+                            with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G2), "farmId", SeedGrowers.id(SeedGrowers.FARM_G2), "productId", "9003", "batchNo", "HYC2605-009"), "IN-SEEDS-QUALITY"),
                     argumentSet("CASE-E86 Pune complaint → Maharashtra field (ancestor)", GROWER_IN1, complaint(), "IN-MH-FIELD"),
                     argumentSet("CASE-E87 Karnataka complaint → CP complaints", CARE_IN, with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.K1), "farmId", SeedGrowers.id(SeedGrowers.FARM_K1)), "IN-CP-COMPLAINTS"),
                     argumentSet("CASE-E88 Karnataka advice → fallback", CARE_IN, advice(SeedGrowers.id(SeedGrowers.K1), SeedGrowers.id(SeedGrowers.FARM_K1)), "IN-CARE"),
                     argumentSet("CASE-E89 Brazil complaint → BR fallback", GROWER_BR1,
-                            with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G4), "farmId", "80003"), "BR-CARE"));
+                            with(complaint(), "growerId", SeedGrowers.id(SeedGrowers.G4), "farmId", SeedGrowers.id(SeedGrowers.FARM_G4)), "BR-CARE"));
         }
 
         @ParameterizedTest
