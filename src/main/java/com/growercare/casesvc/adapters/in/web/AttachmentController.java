@@ -9,7 +9,6 @@ import com.growercare.casesvc.adapters.in.web.CaseDtos.DownloadView;
 import com.growercare.casesvc.adapters.in.web.CaseDtos.PresignedView;
 import com.growercare.casesvc.adapters.in.web.CaseDtos.RequestAttachmentRequest;
 import com.growercare.casesvc.application.Attachments;
-import com.growercare.common.error.NotFoundException;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -55,9 +54,6 @@ class AttachmentController {
     }
 
     private static long attachmentIdOrNotFound(String raw) {
-        if (raw == null || !raw.matches(CaseDtos.ID)) {
-            throw new NotFoundException("Attachment");
-        }
-        return Long.parseLong(raw);
+        return CaseDtos.pathIdOrNotFound(raw, "Attachment");
     }
 }

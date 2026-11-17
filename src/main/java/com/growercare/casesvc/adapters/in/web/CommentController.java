@@ -43,8 +43,8 @@ class CommentController {
                 CaseDtos.uuid(body.clientMsgId(), "clientMsgId"),
                 CommentVisibility.valueOf(body.visibility()),
                 body.body(),
-                optionalId(body.replyToCommentId()),
-                body.attachmentIds() == null ? List.of() : body.attachmentIds().stream().map(Long::parseLong).toList()));
+                optionalId(body.replyToCommentId(), "replyToCommentId"),
+                body.attachmentIds() == null ? List.of() : body.attachmentIds().stream().map(raw -> CaseDtos.id(raw, "attachmentIds")).toList()));
         return ResponseEntity.status(result.replayed() ? HttpStatus.OK : HttpStatus.CREATED).body(CommentView.of(result.entry()));
     }
 
@@ -58,12 +58,12 @@ class CommentController {
 
     @PutMapping("/cases/{caseId}/shares/{partnerOrgId}")
     ShareView share(@PathVariable String caseId, @PathVariable @Pattern(regexp = CaseDtos.ID) String partnerOrgId) {
-        return ShareView.of(service.share(caseIdOrNotFound(caseId), Long.parseLong(partnerOrgId)));
+        return ShareView.of(service.share(caseIdOrNotFound(caseId), CaseDtos.id(partnerOrgId, "partnerOrgId")));
     }
 
     @DeleteMapping("/cases/{caseId}/shares/{partnerOrgId}")
     ResponseEntity<Void> unshare(@PathVariable String caseId, @PathVariable @Pattern(regexp = CaseDtos.ID) String partnerOrgId) {
-        service.unshare(caseIdOrNotFound(caseId), Long.parseLong(partnerOrgId));
+        service.unshare(caseIdOrNotFound(caseId), CaseDtos.id(partnerOrgId, "partnerOrgId"));
         return ResponseEntity.noContent().build();
     }
 }

@@ -111,6 +111,8 @@ class CaseLifecycleIT extends CaseApiTestBase {
                     argumentSet("CASE-E30c title too long", GROWER_IN1, with(complaint(), "title", "x".repeat(201)), true, 400, "VALIDATION_FAILED", "title"),
                     argumentSet("CASE-E30d description too long", GROWER_IN1, with(complaint(), "description", "x".repeat(4001)), true, 400, "VALIDATION_FAILED", "description"),
                     argumentSet("CASE-E30e no product and no buCode", GROWER_IN1, with(complaint(), "productId", null, "batchNo", null), true, 400, "VALIDATION_FAILED", "buCode"),
+                    argumentSet("CASE-E30f growerId above Long.MAX_VALUE", GROWER_IN1, with(complaint(), "growerId", "9999999999999999999"), true, 400, "VALIDATION_FAILED", "growerId"),
+                    argumentSet("CASE-E30f farmId above Long.MAX_VALUE", GROWER_IN1, with(complaint(), "farmId", "9999999999999999999"), true, 400, "VALIDATION_FAILED", "farmId"),
                     argumentSet("CASE-E31 product not registered in BR", GROWER_BR1,
                             with(complaint(), "growerId", "70003", "farmId", "80003", "productId", "9003", "batchNo", null), true, 422, "BUSINESS_RULE_VIOLATION", "case.product-not-registered"),
                     argumentSet("CASE-E32 batch of another product", GROWER_IN1, with(complaint(), "batchNo", "HYC2605-009"), true, 422, "BUSINESS_RULE_VIOLATION", "case.batch-unknown"),
@@ -196,7 +198,8 @@ class CaseLifecycleIT extends CaseApiTestBase {
 
         @ParameterizedTest(name = "CASE-E38 malformed or foreign reference {0}")
         @ValueSource(strings = {"/cases/abc", "/cases/0", "/cases/-5", "/cases/by-no/71-0318-27-482139-5",
-                "/cases/by-no/123", "/cases/4523009" /* country index 5: not active */})
+                "/cases/by-no/123", "/cases/4523009" /* country index 5: not active */,
+                "/cases/9999999999999999999" /* above Long.MAX_VALUE */, "/cases/9999999999999999999/activity"})
         void malformedReferencesAreNotFound(String path) throws Exception {
             problem(as(CARE_IN, get(path)), 404, "NOT_FOUND");
         }
