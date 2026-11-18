@@ -57,7 +57,7 @@ Overview = {scope: {countryCodes[], territoryIds[]}, asOf, openByStatus: {}, ope
 ```
 
 ## 4. Data & events
-- Indexes per shard: grower search uses `cases_grower_ix (grower_id, case_id DESC)` and batch search `cases_batch_ix (product_id, batch_no)` (both since V1); shard **V8** adds `cases_product_ix (product_id, case_id DESC) WHERE product_id IS NOT NULL` for product-only search.
+- Indexes per shard: grower search uses `cases_grower_ix (grower_id, case_id DESC)` and batch search `cases_batch_ix (product_id, batch_no)` (both since V1). Product-only search has no index of its own in Phase 1: it runs inside the scope (territory/status indexes, 90-day hot window). A `cases_product_ix` needs an **online** build (`CREATE INDEX ... ON ONLY` the parent, `CONCURRENTLY` per weekly partition, then `ATTACH`), which the migration tooling cannot do yet; it is a follow-up, not a plain locking `CREATE INDEX` on every shard.
 - No new events. Overview cache: in-process per scope key, `gc.case.overview-cache-ttl` (30 s; tests use 0 s).
 - Cursors are `<keyset cursor>.<filter fingerprint>` (R204).
 
