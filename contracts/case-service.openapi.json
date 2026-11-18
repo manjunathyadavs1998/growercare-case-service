@@ -324,6 +324,75 @@
         },
         "type" : "object"
       },
+      "OverviewScope" : {
+        "properties" : {
+          "countryCodes" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "territoryIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "OverviewSla" : {
+        "properties" : {
+          "atRisk" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "breached" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "OverviewView" : {
+        "properties" : {
+          "asOf" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "openByStatus" : {
+            "additionalProperties" : {
+              "format" : "int64",
+              "type" : "integer"
+            },
+            "type" : "object"
+          },
+          "openByType" : {
+            "additionalProperties" : {
+              "format" : "int64",
+              "type" : "integer"
+            },
+            "type" : "object"
+          },
+          "scope" : {
+            "$ref" : "#/components/schemas/OverviewScope"
+          },
+          "sla" : {
+            "$ref" : "#/components/schemas/OverviewSla"
+          },
+          "unassigned" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "workload" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Workload"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "PostCommentRequest" : {
         "properties" : {
           "attachmentIds" : {
@@ -448,6 +517,18 @@
           }
         },
         "type" : "object"
+      },
+      "Workload" : {
+        "properties" : {
+          "assigneeUserId" : {
+            "type" : "string"
+          },
+          "open" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
       }
     },
     "securitySchemes" : {
@@ -543,6 +624,30 @@
             "enum" : [ "ON_TRACK", "AT_RISK", "BREACHED", "MET", "MISSED" ],
             "type" : "string"
           }
+        }, {
+          "in" : "query",
+          "name" : "growerId",
+          "required" : false,
+          "schema" : {
+            "pattern" : "^[1-9][0-9]{0,18}$",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "productId",
+          "required" : false,
+          "schema" : {
+            "pattern" : "^[1-9][0-9]{0,18}$",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "batchNo",
+          "required" : false,
+          "schema" : {
+            "pattern" : "^[A-Z0-9-]{4,32}$",
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -610,6 +715,33 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CaseView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "case-controller" ]
+      }
+    },
+    "/cases/overview" : {
+      "get" : {
+        "operationId" : "overview",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "territoryId",
+          "required" : false,
+          "schema" : {
+            "pattern" : "^[1-9][0-9]{0,18}$",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OverviewView"
                 }
               }
             },

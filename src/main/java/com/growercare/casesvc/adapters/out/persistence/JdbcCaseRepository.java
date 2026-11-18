@@ -101,8 +101,24 @@ class JdbcCaseRepository implements CaseRepository {
                 .param("assignee", filter.assigneeUserId())
                 .param("queue", filter.queueCode())
                 .param("slaState", filter.slaState())
+                .param("growerId", filter.growerId())
+                .param("productId", filter.productId())
+                .param("batchNo", filter.batchNo())
                 .param("limit", limit)
                 .query(CASE)
+                .list();
+    }
+
+    @Override
+    public List<OverviewRow> overview(ShardId shard, GcPrincipal principal, String permission, Long territoryId) {
+        var scope = CaseAccessScope.predicate(scopeFilter, principal, permission, shard);
+        // {scope} is generated from code-defined column fragments (ScopeFilter.Columns); all values are bind parameters.
+        var statement = sql.render("case.overview", shard.schemaName()).replace(SCOPE_TOKEN, scope.sql());
+        return jdbc.sql(statement)
+                .params(scope.params())
+                .param("territoryId", territoryId)
+                .query((rs, n) -> new OverviewRow(rs.getString("status_code"), rs.getString("case_type_code"),
+                        rs.getObject("assignee_user_id", Long.class), rs.getString("sla_state"), rs.getLong("open_cases")))
                 .list();
     }
 

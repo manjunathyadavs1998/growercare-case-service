@@ -43,6 +43,10 @@ SELECT c.case_id, c.case_no, c.country_code, c.case_type_code, c.status_code, c.
    AND (CAST(:territoryId AS bigint) IS NULL OR c.territory_id = CAST(:territoryId AS bigint))
    AND (CAST(:assignee AS bigint) IS NULL OR c.assignee_user_id = CAST(:assignee AS bigint))
    AND (CAST(:queue AS varchar) IS NULL OR c.queue_code = CAST(:queue AS varchar))
+   -- SPEC-CASE-07 R200/R201: search filters (always inside {scope})
+   AND (CAST(:growerId AS bigint) IS NULL OR c.grower_id = CAST(:growerId AS bigint))
+   AND (CAST(:productId AS bigint) IS NULL OR c.product_id = CAST(:productId AS bigint))
+   AND (CAST(:batchNo AS varchar) IS NULL OR c.batch_no = CAST(:batchNo AS varchar))
    -- SPEC-CASE-04 D6: same rules as SlaRules.state (AT_RISK from 75% of the window)
    AND (CAST(:slaState AS varchar) IS NULL OR CAST(:slaState AS varchar) = CASE
           WHEN c.sla_due_at IS NULL THEN 'ON_TRACK'
@@ -53,6 +57,23 @@ SELECT c.case_id, c.case_no, c.country_code, c.case_type_code, c.status_code, c.
           ELSE 'ON_TRACK' END)
  ORDER BY c.case_id DESC
  LIMIT :limit
+
+-- SPEC-CASE-07 R210/R213: open cases in {scope} (the list's scope SQL), grouped for the overview. SLA as in "list".
+-- name: overview
+SELECT c.status_code, c.case_type_code, c.assignee_user_id,
+       CASE
+                 WHEN c.sla_due_at IS NULL THEN 'ON_TRACK'
+                 WHEN c.closed_at IS NOT NULL THEN CASE WHEN c.closed_at > c.sla_due_at THEN 'MISSED' ELSE 'MET' END
+                 WHEN now() >= c.sla_due_at THEN 'BREACHED'
+                 WHEN now() >= COALESCE(c.sla_started_at, c.created_at)
+                               + (c.sla_due_at - COALESCE(c.sla_started_at, c.created_at)) * 0.75 THEN 'AT_RISK'
+                 ELSE 'ON_TRACK' END AS sla_state,
+       count(*) AS open_cases
+  FROM {shard}.cases c
+ WHERE {scope}
+   AND c.closed_at IS NULL
+   AND (CAST(:territoryId AS bigint) IS NULL OR c.territory_id = CAST(:territoryId AS bigint))
+ GROUP BY 1, 2, 3, 4
 
 -- name: insert
 INSERT INTO {shard}.cases (case_type_code, status_code, territory_id, bu_code, grower_id, farm_id, raised_by_user_id,

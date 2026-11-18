@@ -130,7 +130,7 @@ erDiagram
 | `cases_territory_ix`, `cases_status_ix` | Staff queues within the grant scope |
 | `cases_assignee_open_ix … WHERE closed_at IS NULL` | Agronomist worklist (partial index: open cases only) |
 | `cases_partner_ix`, `case_share_active_partner_ix` | Partner isolation queries (ACC-11) |
-| `cases_batch_ix` | Batch signals (CASE-9) |
+| `cases_batch_ix` | Batch signals (CASE-9); search by product + batch (SPEC-CASE-07) |
 | `cases_closed_ix` | Archive routing / purge eligibility |
 | PK `(case_id, comment_id)` | Comment feed by keyset (newest first) |
 

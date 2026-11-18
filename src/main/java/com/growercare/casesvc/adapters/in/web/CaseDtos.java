@@ -168,6 +168,26 @@ final class CaseDtos {
         }
     }
 
+    /** SPEC-CASE-07 §3: ids as strings; no grower data (D6). */
+    record OverviewView(OverviewScope scope, Instant asOf, java.util.Map<String, Long> openByStatus, java.util.Map<String, Long> openByType,
+                        OverviewSla sla, List<Workload> workload, long unassigned) {
+
+        record OverviewScope(List<String> countryCodes, List<String> territoryIds) { }
+
+        record OverviewSla(long atRisk, long breached) { }
+
+        record Workload(String assigneeUserId, long open) { }
+
+        static OverviewView of(com.growercare.casesvc.application.CaseQueries.Overview o) {
+            var workload = o.workload().entrySet().stream()
+                    .sorted(java.util.Map.Entry.<Long, Long>comparingByValue().reversed().thenComparing(java.util.Map.Entry.comparingByKey()))
+                    .map(e -> new Workload(e.getKey().toString(), e.getValue())).toList();
+            return new OverviewView(
+                    new OverviewScope(o.countryCodes().stream().sorted().toList(), o.territoryIds().stream().sorted().map(String::valueOf).toList()),
+                    o.asOf(), o.openByStatus(), o.openByType(), new OverviewSla(o.atRisk(), o.breached()), workload, o.unassigned());
+        }
+    }
+
     static Long optionalId(String raw, String field) {
         return raw == null ? null : id(raw, field);
     }
