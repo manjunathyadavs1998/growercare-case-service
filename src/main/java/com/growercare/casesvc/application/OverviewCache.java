@@ -22,7 +22,7 @@ public class OverviewCache {
     private final Clock clock;
     private final Map<String, Entry> entries = new ConcurrentHashMap<>();
 
-    public OverviewCache(@Value("${gc.case.overview-cache-ttl:PT30S}") Duration ttl, Clock clock) {
+    public OverviewCache(@Value("${gc.case.overview-cache-ttl}") Duration ttl, Clock clock) {
         this.ttl = ttl;
         this.clock = clock;
     }

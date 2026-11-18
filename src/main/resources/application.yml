@@ -54,6 +54,9 @@ management:
       show-details: never
 
 gc:
+  # SPEC-CASE-07 D5: how long overview numbers are reused per caller scope (ISO-8601 duration).
+  case:
+    overview-cache-ttl: ${GC_OVERVIEW_CACHE_TTL:PT30S}
   # Sharded migrations (common `ref` schema + one schema per ref.shard row), run as the schema OWNER.
   # Production: GC_MIGRATE=false on the service, migrations from a pre-deploy Job (owner credentials only there).
   migration:
