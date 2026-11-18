@@ -37,7 +37,8 @@ class CaseOpenApiContractIT extends CaseApiTestBase {
                 argumentSet("PLAT-E21i PUT share", "/cases/{caseId}/shares/{partnerOrgId}", "put"),
                 argumentSet("PLAT-E21j DELETE share", "/cases/{caseId}/shares/{partnerOrgId}", "delete"),
                 argumentSet("PLAT-E21k GET activity", "/cases/{caseId}/activity", "get"),
-                argumentSet("CASE-E210 GET overview", "/cases/overview", "get"));
+                argumentSet("CASE-E210 GET overview", "/cases/overview", "get"),
+                argumentSet("CASE-E220 GET case types", "/case-types", "get"));
     }
 
     @ParameterizedTest

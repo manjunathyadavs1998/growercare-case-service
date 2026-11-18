@@ -73,6 +73,20 @@ class JdbcReferenceData implements ReferenceData {
     }
 
     @Override
+    public List<CaseTypeInfo> caseTypesWithStatuses() {
+        var types = new java.util.LinkedHashMap<String, java.util.ArrayList<StatusInfo>>();
+        var sla = new java.util.HashMap<String, Integer>();
+        jdbc.sql(sql.get("case-ref.caseTypesWithStatuses")).query(rs -> {
+            var type = rs.getString("case_type_code");
+            sla.put(type, rs.getInt("default_sla_hours"));
+            types.computeIfAbsent(type, t -> new java.util.ArrayList<>()).add(new StatusInfo(rs.getString("status_code"),
+                    rs.getBoolean("is_initial"), rs.getBoolean("is_closed"), rs.getInt("display_order")));
+        });
+        return types.entrySet().stream()
+                .map(e -> new CaseTypeInfo(e.getKey(), sla.get(e.getKey()), List.copyOf(e.getValue()))).toList();
+    }
+
+    @Override
     public java.util.List<Edge> transitionsFrom(String caseType, String fromStatus) {
         return jdbc.sql(sql.get("case-ref.transitionsFrom")).param("caseType", caseType).param("fromStatus", fromStatus)
                 .query((rs, n) -> new Edge(rs.getString("to_status"), rs.getString("required_permission"), rs.getBoolean("to_closed")))
