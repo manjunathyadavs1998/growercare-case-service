@@ -37,6 +37,14 @@ public interface ReferenceData {
 
     Optional<CaseType> caseType(String code);
 
+    /** SPEC-CASE-10: a status of a case type as the UI shows it. */
+    record StatusInfo(String status, boolean initial, boolean closed, int order) { }
+
+    record CaseTypeInfo(String caseType, int defaultSlaHours, List<StatusInfo> statuses) { }
+
+    /** SPEC-CASE-10 R220/R221: the active case types, each with its statuses in display order. */
+    List<CaseTypeInfo> caseTypesWithStatuses();
+
     Optional<Transition> transition(String caseType, String fromStatus, String toStatus);
 
     /** SPEC-CASE-09: an edge out of a status. */

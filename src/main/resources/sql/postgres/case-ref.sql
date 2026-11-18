@@ -79,3 +79,11 @@ SELECT tr.to_status, tr.required_permission, ts.is_closed AS to_closed
   JOIN ref.case_status ts ON ts.case_type_code = tr.case_type_code AND ts.status_code = tr.to_status
  WHERE tr.case_type_code = :caseType AND tr.from_status = :fromStatus
  ORDER BY tr.to_status
+
+-- SPEC-CASE-10 R220/R221: active case types with their statuses, for the UI.
+-- name: caseTypesWithStatuses
+SELECT t.case_type_code, t.default_sla_hours, s.status_code, s.is_initial, s.is_closed, s.display_order
+  FROM ref.case_type t
+  JOIN ref.case_status s ON s.case_type_code = t.case_type_code
+ WHERE t.active
+ ORDER BY t.case_type_code, s.display_order, s.status_code

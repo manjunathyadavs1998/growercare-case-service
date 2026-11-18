@@ -49,9 +49,13 @@ public final class DevSeedPrincipals {
     public static final GcPrincipal AUDITOR_TEST = staff(901, java.util.UUID.fromString("6f1c0a10-0901-4a00-8000-000000000901"), "IN",
             grant("AUDITOR", 50, ScopeKind.COUNTRY, PiiClearance.MASKED, Set.of("case:read", "comment:read"), Set.of("IN"), Set.of(), Set.of()));
 
+    /** Test-only: a staff user whose grant lacks case:read (SPEC-CASE-10 E222). */
+    public static final GcPrincipal NO_CASE_READ_TEST = staff(902, java.util.UUID.fromString("6f1c0a10-0902-4a00-8000-000000000902"), "IN",
+            grant("FINANCE_TEST", 40, ScopeKind.COUNTRY, PiiClearance.MASKED, Set.of("comment:read"), Set.of("IN"), Set.of(), Set.of()));
+
     /** Every principal the stubbed IAM resolves: the dev seed plus test-only users. */
     public static List<GcPrincipal> resolvable() {
-        return java.util.stream.Stream.concat(all().stream(), java.util.stream.Stream.of(AUDITOR_TEST)).toList();
+        return java.util.stream.Stream.concat(all().stream(), java.util.stream.Stream.of(AUDITOR_TEST, NO_CASE_READ_TEST)).toList();
     }
 
     /** Test-only GROWER accounts (SPEC-CASE-06 E145): self-registered in grower-service, unknown to the seed. */
