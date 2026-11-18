@@ -62,16 +62,16 @@ final class CaseDtos {
             String productId, String batchNo, String title, String description, String assigneeUserId,
             Instant slaDueAt, Instant createdAt, Instant updatedAt, Instant closedAt, int version,
             String queueCode, String slaState,
-            List<TransitionView> allowedTransitions, Boolean canAssign) {
+            List<TransitionView> allowedTransitions, Boolean canAssign, List<String> sharedWithPartnerOrgIds) {
 
         /** R30: the grower's name is masked unless the caller has FULL clearance; the phone never leaves. */
         static CaseView of(CaseRecord c, PiiClearance clearance, SlaRules.SlaState slaState) {
-            return of(c, clearance, slaState, null);
+            return of(c, clearance, slaState, null, null);
         }
 
         /** SPEC-CASE-09: single-case responses carry what the caller may do next; lists leave both fields null (D3). */
         static CaseView of(CaseRecord c, PiiClearance clearance, SlaRules.SlaState slaState,
-                           com.growercare.casesvc.application.CaseQueries.AllowedActions actions) {
+                           com.growercare.casesvc.application.CaseQueries.AllowedActions actions, List<String> sharedWith) {
             return new CaseView(
                     id(c.caseId()), c.caseNo().formatted(), c.caseType(), c.status(), c.priority(),
                     c.countryCode(), id(c.territoryId()), c.buCode(),
@@ -82,7 +82,19 @@ final class CaseDtos {
                     c.slaDueAt(), c.createdAt(), c.updatedAt(), c.closedAt(), c.version(),
                     c.queueCode(), slaState.name(),
                     actions == null ? null : actions.transitions().stream().map(e -> new TransitionView(e.toStatus(), e.toClosed())).toList(),
-                    actions == null ? null : actions.canAssign());
+                    actions == null ? null : actions.canAssign(),
+                    sharedWith);
+        }
+
+        /**
+         * SPEC-CASE-11 R230/R231: the active shares as the caller may see them: all of them for the grower and staff, only
+         * the caller's own org for a partner (partners never learn which other shops see a case, ACC-11).
+         */
+        static List<String> sharesFor(CaseRecord c, com.growercare.security.GcPrincipal principal) {
+            if (principal.userType() == com.growercare.security.UserType.PARTNER) {
+                return principal.partnerOrg().filter(c.activeShares()::contains).map(org -> List.of(Long.toString(org))).orElse(List.of());
+            }
+            return c.activeShares().stream().sorted().map(String::valueOf).toList();
         }
     }
 

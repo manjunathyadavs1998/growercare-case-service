@@ -120,8 +120,10 @@ class CaseController {
     /** A single case (read, transition, assign): with what the caller may do next (SPEC-CASE-09). */
     private ResponseEntity<CaseView> withEtag(CaseRecord record) {
         var now = clock.instant();
-        var view = CaseView.of(record, CurrentPrincipal.require().piiClearanceFor("case:read", now),
-                SlaRules.state(now, record.slaStartedAt(), record.slaDueAt(), record.closedAt()), queries.allowedActions(record));
+        var principal = CurrentPrincipal.require();
+        var view = CaseView.of(record, principal.piiClearanceFor("case:read", now),
+                SlaRules.state(now, record.slaStartedAt(), record.slaDueAt(), record.closedAt()), queries.allowedActions(record),
+                CaseView.sharesFor(record, principal));
         return ResponseEntity.status(HttpStatus.OK).eTag(etag(view.version())).body(view);
     }
 
