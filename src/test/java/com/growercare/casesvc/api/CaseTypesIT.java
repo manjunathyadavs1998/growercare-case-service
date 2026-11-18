@@ -39,6 +39,21 @@ class CaseTypesIT extends CaseApiTestBase {
                 .andExpect(jsonPath("$[?(@.caseType == 'PRODUCT_COMPLAINT')].defaultSlaHours").isNotEmpty());
     }
 
+    /** E220 / D2: the same list for every reader; types by code, statuses in display order (R220). */
+    @Test
+    void CASE_E220_sameListForGrowersAndStaffInTheSpecOrder() throws Exception {
+        var forGrower = as(GROWER_IN1, get("/case-types")).andReturn().getResponse().getContentAsString();
+        var forCare = as(CARE_IN, get("/case-types")).andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(forGrower).isEqualTo(forCare);
+        java.util.List<String> types = com.jayway.jsonpath.JsonPath.read(forCare, "$[*].caseType");
+        org.assertj.core.api.Assertions.assertThat(types).isSorted();
+        java.util.List<java.util.Map<String, Object>> all = com.jayway.jsonpath.JsonPath.read(forCare, "$");
+        for (var type : all) {
+            java.util.List<Integer> orders = com.jayway.jsonpath.JsonPath.read(type, "$.statuses[*].order");
+            org.assertj.core.api.Assertions.assertThat(orders).as("statuses of %s", type.get("caseType")).isSorted();
+        }
+    }
+
     @Test
     void CASE_E221_inactiveTypesAreNotListed() throws Exception {
         owner.sql("UPDATE ref.case_type SET active = false WHERE case_type_code = 'ADVERSE_INCIDENT'").update();
